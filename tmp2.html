@@ -1,0 +1,164 @@
+<!doctype html>
+<html>
+<head>
+    <title>Test</title>
+</head>
+<body>
+<button id="actionBtn">Start</button>
+<BR>
+<canvas id="canvasOutput"></canvas>
+<BR>
+<video id="video" width="300" height="225"></video>
+
+<script async src="opencv.js" type="text/javascript" onload="onCvLoaded();"></script>
+
+<script>
+
+function onCvLoaded () {
+    console.log('cv', cv);
+    cv.onRuntimeInitialized = onReady;
+}
+const video = document.getElementById('video');
+const actionBtn = document.getElementById('actionBtn');
+const width = 300;
+const height = 225;
+const FPS = 30;
+let stream;
+let streaming = false;
+
+
+function onReady () {
+
+    let cap = new cv.VideoCapture(video);
+
+    let srcFrame = new cv.Mat(video.height, video.width, cv.CV_8UC4);
+    let prevGray = new cv.Mat();
+    let distGray = new cv.Mat();
+
+    let [maxCorners, qualityLevel, minDistance, blockSize] = [30, 0.3, 7, 7];
+    let p0 = new cv.Mat();
+    let none = new cv.Mat();
+
+    //cv.goodFeaturesToTrack(distGray, p0, maxCorners, qualityLevel, minDistance, none, blockSize);
+    //console.log(p0.data32F.length );
+
+    // Create a mask image for drawing purposes
+    let zeroEle = new cv.Scalar(0, 0, 0, 255);
+    let mask = new cv.Mat(srcFrame.rows, srcFrame.cols, srcFrame.type(), zeroEle);
+
+    let p1 = new cv.Mat();
+    let st = new cv.Mat();
+    let err = new cv.Mat();
+
+
+    // parameters for lucas kanade optical flow
+    let winSize = new cv.Size(15, 15);
+    let maxLevel = 2;
+    let criteria = new cv.TermCriteria(cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 10, 0.03);
+
+    // create some random colors
+    let color = [];
+    for (let i = 0; i < maxCorners; i++) {
+        color.push(new cv.Scalar(parseInt(Math.random()*255), parseInt(Math.random()*255),
+                                 parseInt(Math.random()*255), 255));
+    }
+
+
+    let flgExistsGoods = false;
+
+    actionBtn.addEventListener('click', () => {
+        if (streaming) {
+            stop();
+            actionBtn.textContent = 'Start';
+        } else {
+            start();
+            actionBtn.textContent = 'Stop';
+        }
+    });
+
+    function start () {
+        navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        .then(_stream => {
+            stream = _stream;
+            console.log('stream', stream);
+            video.srcObject = stream;
+            video.play();
+            streaming = true;
+
+            setTimeout(processVideo, 0)
+        })
+        .catch(er => console.log(`An error occurred: ${er}`));
+    }
+    function stop () {
+        if (video) {
+            video.pause();
+            video.srcObject = null;
+        }
+        if (stream) {
+            stream.getVideoTracks()[0].stop();
+        }
+        streaming = false;
+    }
+
+    function processVideo () {
+        try {
+            if (!streaming) {
+
+                srcFrame.delete();
+                prevGray.delete(); distGray();
+
+                p0.delete(); none.delete();
+                p1.delete(); st.delete(); err.delete();
+
+                return;
+            }
+
+            let begin = Date.now();
+
+            // start processing.
+            cap.read(srcFrame);
+            cv.cvtColor(srcFrame, distGray, cv.COLOR_RGB2GRAY);
+
+
+            if(! flgExistsGoods) {
+                cv.goodFeaturesToTrack(distGray, p0, maxCorners, qualityLevel, minDistance, none, blockSize);
+                if(p0.data32F.length > 3) {flgExistsGoods = true;}
+            }
+            else {
+                cv.calcOpticalFlowPyrLK(prevGray, distGray, p0, p1, st, err, winSize, maxLevel, criteria);
+
+                // select good points
+                let goodNew = [];
+                let goodOld = [];
+                for (let i = 0; i < st.rows; i++) {
+                    if (st.data[i] === 1) {
+                        goodNew.push(new cv.Point(p1.data32F[i*2], p1.data32F[i*2+1]));
+                        goodOld.push(new cv.Point(p0.data32F[i*2], p0.data32F[i*2+1]));
+                    }
+                }
+
+                // draw the tracks
+                for (let i = 0; i < goodNew.length; i++) {
+                    cv.line(mask, goodNew[i], goodOld[i], color[i], 2);
+                    cv.circle(srcFrame, goodNew[i], 5, color[i], -1);
+                }
+                cv.add(srcFrame, mask, srcFrame);
+
+            }
+            
+            distGray.copyTo(prevGray);
+            cv.imshow('canvasOutput', srcFrame);
+
+            // schedule the next one.
+            let delay = 1000/FPS - (Date.now() - begin);
+            setTimeout(processVideo, delay);
+
+        } catch (e) {
+            console.log(`An error occurred: ${e}`);
+            console.log(e.lineNumber);
+        }
+    }
+}
+</script>
+</body>
+</html>
