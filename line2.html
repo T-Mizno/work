@@ -75,15 +75,15 @@ function onReady () {
     let faceDist = new cv.Mat(video.height, video.width, cv.CV_8UC4);
     let faces = new cv.RectVector();
 
-
+    /*
     let classifier = new cv.CascadeClassifier();
     let sss = classifier.load('./haarcascade_frontalface_default.xml');
     console.log(sss);
     let reader = new FileReader();
     reader.readAsDataURL('./haarcascade_frontalface_default.xml');
     console.log(reader);
+    */
 
-    /*
     let classifier = new cv.CascadeClassifier();  // initialize classifier
     let utils = new Utils('errorMessage'); //use utils class
     let faceCascadeFile = 'haarcascade_frontalface_default.xml'; // path to xml
@@ -92,7 +92,7 @@ function onReady () {
         let sss = classifier.load(faceCascadeFile); // in the callback, load the cascade from file
         console.log(sss);
     });
-    */
+    
 
     actionBtn.addEventListener('click', () => {
         if (streaming) {
@@ -224,7 +224,7 @@ function onReady () {
                         cv.rectangle(faceDist, point1, point2, [255, 0, 0, 255]);
                     }
 
-                
+
             cv.imshow('faceOutput', faceDist);
 
             // schedule the next one.
