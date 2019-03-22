@@ -11,7 +11,7 @@
 </head>
 <body>
     Test <button id="actionBtn">Start</button>
-    <video id="video" width="800" height="600" style="position:fixed; top:50px; left:50px;"></video>
+    <video id="video" width="400" height="300" style="position:fixed; top:50px; left:50px;"></video>
     <canvas id="canvasOutput" style="position:fixed; top:50px; left:50px;"></></canvas>
     <div id="canvas3d" style="position:fixed; top:50px; left:50px; background-color:rgba(0,0,0,0);"></div>
     <canvas id="canvas2d" style="position:fixed; top:50px; left:50px; background-color:rgba(0,0,0,0);" ></></canvas>
@@ -60,11 +60,11 @@
 
     function GlobalWidth() {
         //return window.innerWidth - 50;
-        return 800;
+        return 400;
     }
     function GlobalHeight() {
         //return window.innerHeight - 50;
-        return 600;
+        return 300;
     }
     function drawTriangle(ctx, aWidth, aHeight) {
         let w = aWidth;
