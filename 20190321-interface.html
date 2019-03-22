@@ -401,7 +401,7 @@ function init() {
         weights[1] = 1-a;
     }
 
-
+    window.ontouchstart = window.onmousedown;
     window.onmousedown = function(e) {
         //console.log("mouse down: "+"mode2D:"+ mode2D+", selectedModel"+ selectedModel);
         const px = e.clientX;

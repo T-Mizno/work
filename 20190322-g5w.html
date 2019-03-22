@@ -1,0 +1,367 @@
+<!doctype html>
+<html>
+<head>
+    <title>Test 2</title>
+    <style>
+    body {
+        margin: 0;
+        overflow: hidden;
+    }
+    </style>
+</head>
+<body>
+    Test <button id="actionBtn">Start</button>
+    <video id="video" width="800" height="600" style="position:fixed; top:50px; left:50px;"></video>
+    <canvas id="canvasOutput" style="position:fixed; top:50px; left:50px;"></></canvas>
+    <div id="canvas3d" style="position:fixed; top:50px; left:50px; background-color:rgba(0,0,0,0);"></div>
+    <canvas id="canvas2d" style="position:fixed; top:50px; left:50px; background-color:rgba(0,0,0,0);" ></></canvas>
+
+    <!-- <script async src="opencv.js" type="text/javascript" onload="onCvLoaded();"></script> -->
+    <script async src="opencv.js" type="text/javascript"></script>
+    <script async src="utils.js" type="text/javascript"></script>
+    <!-- <script src="https://threejs.org/build/three.min.js"></script> -->
+     <script src="https://threejs.org/build/three.min.js"></script>
+    <script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://threejs.org/examples/js/loaders/TGALoader.js"></script>
+
+
+    <script>
+
+    function onCvLoaded () {
+        console.log('cv', cv);
+        cv.onRuntimeInitialized = onReady;
+
+    }
+
+    const video = document.getElementById('video');
+    const actionBtn = document.getElementById('actionBtn');
+    const FPS = 30;
+    let stream;
+    let streaming = false;
+
+    let movMin = [0, 0];
+    let movMax = [0, 0];
+
+    // for gl
+    let renderer;
+    let scene;
+    let canvasMap;
+    let objCube1;
+    let objCube2;
+
+    let selectedModel = null;
+
+    let canvas2D;
+    let context2D;
+    let mode2D = false;
+
+    let weights = [1,1,1,1,1,1];
+
+
+    function GlobalWidth() {
+        //return window.innerWidth - 50;
+        return 800;
+    }
+    function GlobalHeight() {
+        //return window.innerHeight - 50;
+        return 600;
+    }
+    function drawTriangle(ctx, aWidth, aHeight) {
+        let w = aWidth;
+        if(w > aHeight) { w = aHeight;}
+        w = 0.5*w;
+        let cw = aWidth/2;
+        let ch = aHeight/2;
+        let vs = [  [cw-w/2, ch+0.289*w], [cw+w/2, ch+0.289*w], [cw, ch-0.577*w]  ];
+        for(let i=0; i<3; i++) for(let j=0; j<2; j++) {vs[i][j] = Math.round(vs[i][j]);}
+
+        ctx.beginPath();
+        ctx.moveTo(vs[0][0], vs[0][1]);
+        ctx.lineTo(vs[1][0], vs[1][1]);
+        ctx.lineTo(vs[2][0], vs[2][1]);
+        ctx.closePath();
+
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "rgb(0,0,0)";
+        ctx.stroke();
+
+        ctx.fillStyle="rgba(0,0,255,0.1)";
+        ctx.fill();
+
+        return vs;
+    }
+
+    function drawWindow(ctx, aw, ah) {
+        ctx.beginPath();
+        ctx.fillStyle = "rgb(0,0,0)";
+        ctx.rect(50, 0, 20, ah);
+        ctx.rect(ah-100, 0, aw-100, ah);
+        ctx.rect(0, 0, aw, 20);
+
+        ctx.fill();
+    }
+
+    function renderGL() {
+            objCube1.material.map.needsUpdate = true;
+            objCube2.material.map.needsUpdate = true;
+            objCube1.position.x += Math.sin(1.571*movMax[0]/GlobalWidth()*10);
+            objCube1.position.y -= Math.sin(1.571*movMax[1]/GlobalHeight()*10);
+            objCube2.position.x += Math.sin(1.571*movMax[0]/GlobalWidth()*10);
+            objCube2.position.y -= Math.sin(1.571*movMax[1]/GlobalHeight()*10);
+            //console.log("move "+movMax[0]/40+", "+movMax[1]/30);
+
+        objCube1.rotation.x = Math.asin(movMax[0]/GlobalWidth());
+        objCube1.rotation.y = Math.asin(movMax[1]/GlobalHeight());
+
+        renderer.render(scene, camera);
+    }
+    function initGL() {
+
+        canvas2D = document.getElementById("canvas2d");
+        canvas2D.width = GlobalWidth();
+        canvas2D.height = GlobalHeight();
+        context2D = canvas2D.getContext("2d");
+        mode2D = false;
+        context2D.clearRect(0, 0, context2D.canvas.width, context2D.canvas.height);
+        context2D.globalAlpha = 0.7;
+        context2D.fillStyle = "rgba(0, 0, 0, 0)";
+        context2D.fillRect(0, 0, context2D.canvas.width, context2D.canvas.height);
+        drawWindow(context2D, context2D.canvas.width, context2D.canvas.height);
+
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(45, GlobalWidth() / GlobalHeight(), 0.1, 1000);
+        renderer = new THREE.WebGLRenderer({ alpha: true });
+        renderer.setClearColor( 0x000000, 0 );
+        renderer.setSize(GlobalWidth(), GlobalHeight());
+        renderer.shadowMap.enabled = true;
+
+        canvasMap = document.getElementById("canvasOutput");
+
+        function createMesh2 (geom) {
+            //const cMap = new THREE.Texture(canvasMap);
+            const cVideo = document.getElementById('video');
+            const cMap = new THREE.VideoTexture(cVideo);
+            cMap.generateMipmaps = false;
+            const mat = new THREE.MeshPhongMaterial({side: THREE.DoubleSide});
+            mat.map = cMap;
+            mat.bumpMap = cMap;
+            cMap.needsupdate = true;
+            const mesh = new THREE.Mesh(geom, mat);
+
+            return mesh;
+        }
+
+        objCube1 = createMesh2(new THREE.IcosahedronGeometry(5, 0));
+        //objCube1 = createMesh2(new THREE.BoxGeometry(5, 5, 5));
+        objCube1.position.x = 12;
+        scene.add(objCube1);
+
+        //objCube2 = createMesh2(new THREE.SphereGeometry(5, 20, 20));
+        //objCube2 = createMesh2(new THREE.BoxGeometry(5, 5, 5));
+        objCube2 = createMesh2(new THREE.IcosahedronGeometry(5, 0));
+        objCube2.position.x = -12;
+        scene.add(objCube2);
+
+
+
+        camera.position.x = 0;
+        camera.position.y = 12;
+        camera.position.z = 28;
+        camera.lookAt(new THREE.Vector3(0, 0, 0));
+
+        let ambiLight = new THREE.AmbientLight(0x141414);
+        scene.add(ambiLight);
+
+        let light = new THREE.DirectionalLight();
+        light.position.set(0, 30, 20);
+        scene.add(light);
+
+        document.getElementById("canvas3d").appendChild(renderer.domElement);
+
+        renderGL();
+    }
+
+    function onReady () {
+
+        initGL();
+
+        let cap = new cv.VideoCapture(video);
+
+        let srcFrame = new cv.Mat(video.height, video.width, cv.CV_8UC4);
+        let prevGray = new cv.Mat();
+        let distGray = new cv.Mat();
+
+        let [maxCorners, qualityLevel, minDistance, blockSize] = [30, 0.3, 7, 7];
+        let p0 = new cv.Mat();
+        let none = new cv.Mat();
+
+        // Create a mask image for drawing purposes
+        let zeroEle = new cv.Scalar(0, 0, 0, 255);
+        let mask = new cv.Mat(srcFrame.rows, srcFrame.cols, srcFrame.type(), zeroEle);
+
+        let p1 = new cv.Mat();
+        let st = new cv.Mat();
+        let err = new cv.Mat();
+
+        // parameters for lucas kanade optical flow
+        let winSize = new cv.Size(15, 15);
+        let maxLevel = 2;
+        let criteria = new cv.TermCriteria(cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 10, 0.03);
+
+        // create some random colors
+        let color = [];
+        for (let i = 0; i < maxCorners; i++) {
+            color.push(new cv.Scalar(parseInt(Math.random()*255), parseInt(Math.random()*255),
+            parseInt(Math.random()*255), 255));
+        }
+
+        let flgExistsGoods = false;
+
+        actionBtn.addEventListener('click', () => {
+            if (streaming) {
+                stop();
+                actionBtn.textContent = 'End';
+                actionBtn.disabled = true;
+            } else {
+                start();
+                actionBtn.textContent = 'Stop';
+            }
+        });
+
+        function start () {
+            //navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+            navigator.mediaDevices.getUserMedia({ video: {facingMode: 'environment'}, audio: false })
+            .then(_stream => {
+                stream = _stream;
+                console.log('stream', stream);
+                video.srcObject = stream;
+                video.play();
+                streaming = true;
+
+                setTimeout(processVideo, 0)
+            })
+            .catch(er => console.log(`An error occurred: ${er}`));
+        }
+        function stop () {
+            if (video) {
+                video.pause();
+                video.srcObject = null;
+            }
+            if (stream) {
+                stream.getVideoTracks()[0].stop();
+            }
+            streaming = false;
+        }
+
+        function refresh() {
+            srcFrame.delete();
+            prevGray.delete(); distGray.delete();
+
+            p0.delete(); none.delete();
+            p1.delete(); st.delete(); err.delete();
+
+        }
+
+        function processVideo () {
+            try {
+                if (!streaming) {
+                    refresh();
+                    return;
+                }
+
+                let begin = Date.now();
+
+                // start processing.
+                cap.read(srcFrame);
+                cv.cvtColor(srcFrame, distGray, cv.COLOR_RGBA2GRAY);
+                //if(prevGray.size() < 1) distGray.copyTo(prevGray);
+
+                if(! flgExistsGoods) {
+                    cv.goodFeaturesToTrack(distGray, p0, maxCorners, qualityLevel, minDistance, none, blockSize);
+                    if(p0.data32F.length > 1) {flgExistsGoods = true;}
+                }
+                else {
+                    cv.calcOpticalFlowPyrLK(prevGray, distGray, p0, p1, st, err, winSize, maxLevel, criteria);
+
+                    // select good points
+                    let goodNew = [];
+                    let goodOld = [];
+                    for (let i = 0; i < st.rows; i++) {
+                        if (st.data[i] === 1) {
+                            let newX = p1.data32F[i*2];
+                            let newY = p1.data32F[i*2+1];
+                            if(newX < 5) newX = 5;  if(newY < 5) newY = 5;
+                            if(newX >= GlobalWidth()-5) newX = GlobalWidth()-5;  if(newY >= GlobalHeight()-5) newY = GlobalHeight()-5;
+                            goodNew.push(new cv.Point(newX, newY));
+                            goodOld.push(new cv.Point(p0.data32F[i*2], p0.data32F[i*2+1]));
+                        }
+                    }
+
+                    if(goodNew.length < 2){
+                        flgExistsGoods = false;
+                        mask.setTo(zeroEle);
+                    }
+                    else {
+                        /*
+                        // draw the tracks
+                        for (let i = 0; i < goodNew.length; i++) {
+                            //cv.line(mask, goodNew[i], goodOld[i], color[i], 2);
+                            cv.line(srcFrame, goodNew[i], goodOld[i], color[i], 2);
+                            cv.circle(srcFrame, goodNew[i], 5, color[i], -1);
+                        }
+                        //cv.add(srcFrame, mask, srcFrame);
+                        */
+
+                        p0.delete(); p0 = null;
+                        p0 = new cv.Mat(goodNew.length, 1, cv.CV_32FC2);
+                        for (let i = 0; i < goodNew.length; i++) {
+                            p0.data32F[i*2] = goodNew[i].x;
+                            p0.data32F[i*2+1] = goodNew[i].y;
+                        }
+
+                        let tmpMin = [1000, 1000];
+                        let tmpMax = [0, 0];
+                        for (let i = 0; i < goodNew.length; i++) {
+                            let tmpD = Math.abs(goodNew[i].x-goodOld[i].x)+Math.abs(goodNew[i].y-goodOld[i].y);
+                            if(tmpD > Math.abs(tmpMax[0])+Math.abs(tmpMax[1])) {
+                                tmpMax[0] = goodNew[i].x - goodOld[i].x;
+                                tmpMax[1] = goodNew[i].y - goodOld[i].y;
+                            }
+                            if(tmpD < Math.abs(tmpMin[0])+Math.abs(tmpMin[1])) {
+                                tmpMin[0] = goodNew[i].x - goodOld[i].x;
+                                tmpMin[1] = goodNew[i].y - goodOld[i].y;
+                            }
+
+                        }
+                        for(let j=0; j<2; j++) {
+                            movMin[j] = tmpMin[j];
+                            movMax[j] = tmpMax[j];
+                        }
+                    }
+
+                }
+
+
+                distGray.copyTo(prevGray);
+                cv.imshow('canvasOutput', srcFrame);
+
+                // schedule the next one.
+                let delay = 1000/FPS - (Date.now() - begin);
+                setTimeout(processVideo, delay);
+
+                renderGL();
+
+            } catch (e) {
+                console.log(`An error occurred: ${e}`);
+                console.log(e.lineNumber);
+                console.log('go refresh and stop');
+                refresh();
+                stop();
+            }
+        }
+    }
+
+    window.onload = onCvLoaded;
+</script>
+</body>
+</html>
