@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>Sample</title>
+    <style>
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+<script>
+
+    const SEQ_SIZE = 10;
+    const QUE_MAX_SIZE = 100;
+
+    const RGBs = ["255, 0, 0", "0, 255, 0", "0, 0, 255", "255, 255, 0", "255, 0, 255", "0, 255, 255"];
+    function idColor(key) {
+        return RGBs[key % RGBs.length];
+    }
+
+    let video;
+    let stream;
+    let streaming = false;
+
+    let canvas2D;
+    let context2D;
+    let renderMode;
+
+    let contextBG;
+
+    let mps;
+
+    let pCount;
+
+    function que(aQue, av) {
+        aQue.unshift(av);
+        if (aQue.length > QUE_MAX_SIZE) {
+            aQue.pop();
+        }
+    }
+
+    function addP(aM, aKey, av) {
+        let _ps;
+        if (aM.has(aKey)) {
+            _ps = aM.get(aKey);
+        }
+        else {
+            _ps = new Array();
+        }
+        que(_ps, av);
+        aM.set(aKey, _ps);
+    }
+
+    function GlobalWidth() {
+        return window.innerWidth;
+    }
+    function GlobalHeight() {
+        return window.innerHeight;
+    }
+
+    function nextSampleData() {
+        let step = GlobalWidth() / 1400;
+        let key = Math.round(Math.random() * (SEQ_SIZE - 1));
+        let prex;
+        let prey;
+        let anx = 0;
+        let any = 0;
+        if (!mps.has(key)) {
+            prex = Math.random() * GlobalWidth();
+            prey = Math.random() * GlobalHeight();
+        }
+        else {
+            prex = mps.get(key)[0].x;
+            prey = mps.get(key)[0].y;
+            if (mps.get(key).length > 1) {
+                anx = mps.get(key)[1].x;
+                any = mps.get(key)[1].y;
+            }
+            else {
+                anx = prex;
+                any = prey;
+            }
+
+            /*
+            let tmpx = 0;
+            let tmpy = 0;
+            for (let i = 0; i < mps.get(key).length - 1; i++) {
+                tmpx += mps.get(key)[i].x / (i + 1);
+                tmpy += mps.get(key)[i].y / (i + 1);
+            }
+            anx = tmpx;
+            any = tmpy;
+            */
+        }
+        let x = Math.random() * 2 * step - step;
+        let y = Math.random() * 2 * step - step;
+        x = prex + x + (prex - anx);
+        y = prey + y + (prey - any);
+
+        if (x < 50) x = 50;
+        if (y < 50) y = 50;
+        if (x > (GlobalWidth() - 50)) x = GlobalWidth() - 50;
+        if (y > (GlobalHeight() - 50)) y = GlobalHeight() - 50;
+
+        return { seqID: key, x: Math.round(x), y: Math.round(y) };
+    }
+
+    function canvasClear() {
+
+        context2D.clearRect(0, 0, context2D.canvas.width, context2D.canvas.height);
+        //context2D.globalAlpha = 0.7;
+        context2D.fillStyle = "rgba(0, 0, 0, 0.5)";
+        context2D.fillRect(0, 0, context2D.canvas.width, context2D.canvas.height);
+    }
+
+    function render(aID, aPs) {
+
+        if (mps.size < 1) return;
+
+        //console.log(aID + ": " + aPs.length);
+        context2D.beginPath();
+        context2D.fillStyle = "rgba(" + idColor(aID) + ", 0.2) ";
+        context2D.arc(aPs[0].x, aPs[0].y, Math.round(50 * Math.sin(((pCount % 60) / 60) * 3.14159)) + 20, 0, 2 * Math.PI, true);
+        context2D.fill();
+
+        context2D.beginPath();
+        context2D.lineWidth = 3;
+        context2D.strokeStyle = "rgba(" + idColor(aID) + ",  0.2) ";
+        context2D.moveTo(aPs[0].x, aPs[0].y);
+        for (let i = 1; i < aPs.length; i++) {
+            context2D.lineTo(aPs[i].x, aPs[i].y);
+        }
+        context2D.stroke();
+
+        for (let i = 0; i < aPs.length; i++) {
+            context2D.beginPath();
+            context2D.fillStyle = "rgba(" + idColor(aID) + ", " + (aPs.length - i) / aPs.length * 0.5 + ")";
+            context2D.arc(aPs[i].x, aPs[i].y, 3, 0, 2 * Math.PI, true);
+            context2D.fill();
+        }
+
+        context2D.font = "18px 'Times'";
+        //context2D.strokeStyle = "rgb(" + idColor(aID) + ")";
+        context2D.strokeStyle = "rgb(255,255,255)";
+        context2D.lineWidth = 1;
+        context2D.strokeText("id=" + aID, aPs[0].x, aPs[0].y + 20);
+    }
+
+    function update() {
+        //if (mps.size > 1000) return;
+        //if (pCount > 1000) return;
+
+        if (!renderMode) {
+            window.requestAnimationFrame(update);
+            return;
+        }
+
+        for (let i = 0; i < SEQ_SIZE; i++) {
+            let kp = nextSampleData();
+            addP(mps, kp.seqID, { x: kp.x, y: kp.y });
+            console.log("id:" + kp.seqID, { x: kp.x, y: kp.y });
+        }
+        pCount++;
+
+
+        canvasClear();
+        let keys = mps.keys();
+        for (k of keys) {
+            render(k, mps.get(k));
+        }
+
+        window.requestAnimationFrame(update);
+    }
+
+
+    function setBG() {
+        let canvasBG = document.getElementById("canvasBG");
+        canvasBG.width = GlobalWidth();
+        canvasBG.height = GlobalHeight();
+        contextBG = canvasBG.getContext("2d");
+        //contextBG.globalCompositeOperation = "screen";
+    }
+
+    function startvideo() {
+        //navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+            .then(_stream => {
+                stream = _stream;
+                console.log('stream', stream);
+                video.srcObject = stream;
+                video.play();
+                streaming = true;
+                //setTimeout(processVideo, 0)
+            })
+            .catch(er => console.log(`An error occurred: ${er}`));
+    }
+    function stopvideo() {
+        if (video) {
+            video.pause();
+            video.srcObject = null;
+        }
+        if (stream) {
+            stream.getVideoTracks()[0].stop();
+        }
+        streaming = false;
+    }
+
+    function switchRenderMode(e) {
+        if (renderMode) {
+            renderMode = false;
+            stopvideo();
+        }
+        else {
+            renderMode = true;
+            startvideo();
+        }
+    }
+
+
+    function init() {
+
+        video = document.getElementById('video');
+        video.width = GlobalWidth();
+        video.height = GlobalHeight();
+        streaming = false;
+
+        pCount = 0;
+        renderMode = true;
+        mps = new Map();
+
+        canvas2D = document.getElementById("canvas2d");
+        canvas2D.width = GlobalWidth();
+        canvas2D.height = GlobalHeight();
+        context2D = canvas2D.getContext("2d");
+        //context2D.globalCompositeOperation = "screen";
+        context2D.globalCompositeOperation = "lighter";
+
+        canvasClear();
+
+        startvideo();
+
+
+        window.requestAnimationFrame(update);
+    }
+
+    window.onload = init;
+    window.onmousedown = switchRenderMode;
+
+</script>
+
+<body>
+    <video id="video" width="400" height="300"></video>
+    <canvas id="canvas2d" style="position:fixed; top:0px; left:0px; background-color:rgba(0,0,0,0);"></canvas>
+
+</body>
+
+</html>
