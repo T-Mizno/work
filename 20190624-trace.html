@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>Sample</title>
+    <style>
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+<script>
+
+    const SEQ_SIZE = 10;
+    const QUE_MAX_SIZE = 100;
+
+    const RGBs = ["255, 0, 0", "0, 255, 0", "0, 0, 255", "255, 255, 0", "255, 0, 255", "0, 255, 255"];
+    function idColor(key) {
+        return RGBs[key % RGBs.length];
+    }
+
+    let canvas2D;
+    let context2D;
+    let renderMode;
+
+    let contextBG;
+
+    let mps;
+
+    let pCount;
+
+    let boxes;
+    let currentBox;
+
+    function que(aQue, av) {
+        aQue.unshift(av);
+        if (aQue.length > QUE_MAX_SIZE) {
+            aQue.pop();
+        }
+    }
+
+    function addP(aM, aKey, av) {
+        let _ps;
+        if (aM.has(aKey)) {
+            _ps = aM.get(aKey);
+        }
+        else {
+            _ps = new Array();
+        }
+        que(_ps, av);
+        aM.set(aKey, _ps);
+    }
+
+    function GlobalWidth() {
+        return window.innerWidth;
+    }
+    function GlobalHeight() {
+        return window.innerHeight;
+    }
+
+    function nextSampleData() {
+        let step = GlobalWidth() / 1400;
+        let key = Math.round(Math.random() * (SEQ_SIZE - 1));
+        let prex;
+        let prey;
+        let anx = 0;
+        let any = 0;
+        if (!mps.has(key)) {
+            prex = Math.random() * GlobalWidth();
+            prey = Math.random() * GlobalHeight();
+        }
+        else {
+            prex = mps.get(key)[0].x;
+            prey = mps.get(key)[0].y;
+            if (mps.get(key).length > 1) {
+                anx = mps.get(key)[1].x;
+                any = mps.get(key)[1].y;
+            }
+            else {
+                anx = prex;
+                any = prey;
+            }
+
+            /*
+            let tmpx = 0;
+            let tmpy = 0;
+            for (let i = 0; i < mps.get(key).length - 1; i++) {
+                tmpx += mps.get(key)[i].x / (i + 1);
+                tmpy += mps.get(key)[i].y / (i + 1);
+            }
+            anx = tmpx;
+            any = tmpy;
+            */
+        }
+        let x = Math.random() * 2 * step - step;
+        let y = Math.random() * 2 * step - step;
+        x = prex + x + (prex - anx);
+        y = prey + y + (prey - any);
+
+        if (x < 50) x = 50;
+        if (y < 50) y = 50;
+        if (x > (GlobalWidth() - 50)) x = GlobalWidth() - 50;
+        if (y > (GlobalHeight() - 50)) y = GlobalHeight() - 50;
+
+
+        let tag = undefined;
+        if (onBoxes(x, y)) {
+            x = prex;
+            y = prey;
+            tag = currentBox.tag;
+        }
+
+
+        return { seqID: key, x: Math.round(x), y: Math.round(y), tag: tag };
+    }
+
+    function canvasClear() {
+
+        context2D.clearRect(0, 0, context2D.canvas.width, context2D.canvas.height);
+        //context2D.globalAlpha = 0.7;
+        context2D.fillStyle = "rgba(0.5, 1.0, 0.5, 0.5)";
+        context2D.fillRect(0, 0, context2D.canvas.width, context2D.canvas.height);
+    }
+
+    function drawBoxes() {
+
+        for (let b of boxes) {
+
+
+            context2D.fillStyle = "rgb(200, 0, 0)";
+            context2D.fillRect(b.x + 1, b.y + 1, b.w - 1, b.h - 1);
+
+            context2D.beginPath();
+            context2D.lineWidth = "3";
+            context2D.strokeStyle = "black";
+            context2D.rect(b.x, b.y, b.w, b.h);
+            context2D.stroke();
+
+            context2D.font = "18px 'Times'";
+            context2D.strokeStyle = "rgb(255,255,255)";
+            context2D.lineWidth = 1;
+            context2D.strokeText(b.tag, b.x + 10, b.y + 20);
+
+
+        }
+
+    }
+
+    function render(aID, aPs) {
+
+        if (mps.size < 1) return;
+
+        //console.log(aID + ": " + aPs.length);
+        context2D.beginPath();
+        context2D.fillStyle = "rgba(" + idColor(aID) + ", 0.2) ";
+        context2D.arc(aPs[0].x, aPs[0].y, Math.round(50 * Math.sin(((pCount % 60) / 60) * 3.14159)) + 20, 0, 2 * Math.PI, true);
+        context2D.fill();
+
+        context2D.beginPath();
+        context2D.lineWidth = 3;
+        context2D.strokeStyle = "rgba(" + idColor(aID) + ",  0.2) ";
+        context2D.moveTo(aPs[0].x, aPs[0].y);
+        for (let i = 1; i < aPs.length; i++) {
+            context2D.lineTo(aPs[i].x, aPs[i].y);
+        }
+        context2D.stroke();
+
+        for (let i = 0; i < aPs.length; i++) {
+            context2D.beginPath();
+            context2D.fillStyle = "rgba(" + idColor(aID) + ", " + (aPs.length - i) / aPs.length * 0.5 + ")";
+            context2D.arc(aPs[i].x, aPs[i].y, 3, 0, 2 * Math.PI, true);
+            context2D.fill();
+        }
+
+        context2D.font = "18px 'Times'";
+        //context2D.strokeStyle = "rgb(" + idColor(aID) + ")";
+        context2D.strokeStyle = "rgb(255,255,255)";
+        context2D.lineWidth = 1;
+        context2D.strokeText("id=" + aID, aPs[0].x, aPs[0].y + 20);
+    }
+
+    function onBox(box, x, y) {
+        return (box.x <= x) && (x <= box.x + box.w) && (box.y <= y) && (y <= box.y + box.h);
+    }
+
+    function onBoxes(x, y) {
+        for (let b of boxes) {
+            if (onBox(b, x, y)) {
+                currentBox = b;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function update() {
+        //if (mps.size > 1000) return;
+        //if (pCount > 1000) return;
+
+        if (!renderMode) {
+            window.requestAnimationFrame(update);
+            return;
+        }
+
+        for (let i = 0; i < SEQ_SIZE; i++) {
+            let kp = nextSampleData();
+            let v;
+            if (kp.tag == undefined) {
+                v = { x: kp.x, y: kp.y };
+
+            }
+            else {
+                v = { x: kp.x, y: kp.y, tag: kp.tag };
+            }
+            addP(mps, kp.seqID, v);
+            console.log("id:" + kp.seqID, v);
+        }
+        pCount++;
+
+
+        canvasClear();
+
+        drawBoxes();
+
+        let keys = mps.keys();
+        for (k of keys) {
+            render(k, mps.get(k));
+        }
+
+        window.requestAnimationFrame(update);
+    }
+
+
+    let mousePreX;
+    let mousePreY;
+
+    function switchRenderMode(e) {
+        if (renderMode) {
+            renderMode = false;
+        }
+        else {
+            renderMode = true;
+        }
+        mousePreX = e.clientX;
+        mousePreY = e.clientY;
+        if (!onBoxes(e.clientX, e.clientY)) {
+            currentBox = undefined;
+        }
+    }
+
+
+    function onMouseMove(e) {
+        if (renderMode) return;
+        if (currentBox == undefined) return;
+        let dx = e.clientX - mousePreX;
+        let dy = e.clientY - mousePreY;
+        currentBox.x += 0.01 * dx;
+        currentBox.y += 0.01 * dy;
+
+        console.log(e);
+    }
+
+
+
+
+    function setBG() {
+        let canvasBG = document.getElementById("canvasBG");
+        canvasBG.width = GlobalWidth();
+        canvasBG.height = GlobalHeight();
+        contextBG = canvasBG.getContext("2d");
+        //contextBG.globalCompositeOperation = "screen";
+    }
+
+    function init() {
+        pCount = 0;
+        renderMode = true;
+        mps = new Map();
+
+        canvas2D = document.getElementById("canvas2d");
+        canvas2D.width = GlobalWidth();
+        canvas2D.height = GlobalHeight();
+        context2D = canvas2D.getContext("2d");
+        //context2D.globalCompositeOperation = "screen";
+        context2D.globalCompositeOperation = "lighter";
+
+        canvasClear();
+
+        boxes = [];
+        boxes.push({ x: 100, y: 100, w: 50, h: 100, tag: "A1" });
+        boxes.push({ x: 100, y: 200, w: 50, h: 100, tag: "A2" });
+        boxes.push({ x: 100, y: 300, w: 50, h: 100, tag: "A3" });
+        boxes.push({ x: 100, y: 400, w: 50, h: 100, tag: "A4" });
+
+        boxes.push({ x: 250, y: 50, w: 50, h: 100, tag: "B1" });
+        boxes.push({ x: 250, y: 170, w: 50, h: 100, tag: "B2" });
+        boxes.push({ x: 250, y: 290, w: 50, h: 100, tag: "B3" });
+        boxes.push({ x: 250, y: 410, w: 50, h: 100, tag: "B4" });
+
+        boxes.push({ x: 400, y: 50, w: 50, h: 100, tag: "C1" });
+        boxes.push({ x: 400, y: 170, w: 50, h: 100, tag: "C2" });
+        boxes.push({ x: 400, y: 290, w: 50, h: 100, tag: "C3" });
+        boxes.push({ x: 400, y: 410, w: 50, h: 100, tag: "C4" });
+
+        boxes.push({ x: 600, y: 150, w: 50, h: 200, tag: "D1" });
+        boxes.push({ x: 600, y: 350, w: 50, h: 100, tag: "D2" });
+
+        boxes.push({ x: 550, y: 550, w: 100, h: 100, tag: "E1" });
+
+        window.requestAnimationFrame(update);
+    }
+
+    window.onload = init;
+    window.onmousedown = switchRenderMode;
+    window.onmousemove = onMouseMove;
+
+</script>
+
+<!-- <body style="background-image: url(20190326testbg.png); background-size: cover;"> -->
+
+<body>
+    <!-- <canvas id="canvasBG" style="position:fixed; top:0px; left:0px; background-color:rgba(0,0,0,0);"></canvas> -->
+    <!--<H1>サンプル</H1>
+    <H2>背景には、画像やリアルタイムの動画を設定できます。</H2>
+
+    -->
+    <canvas id="canvas2d" style="position:fixed; top:0px; left:0px; background-color:rgba(0,0,0,0);"></canvas>
+
+</body>
+
+</html>
