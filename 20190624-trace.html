@@ -26,6 +26,7 @@
 
     let contextBG;
 
+    let rawData;
     let mps;
 
     let pCount;
@@ -61,6 +62,9 @@
 
     function nextSampleData() {
         let step = GlobalWidth() / 1400;
+        if (step < 1) step = 1;
+        if (step > 5) step = 5;
+
         let key = Math.round(Math.random() * (SEQ_SIZE - 1));
         let prex;
         let prey;
@@ -81,17 +85,6 @@
                 anx = prex;
                 any = prey;
             }
-
-            /*
-            let tmpx = 0;
-            let tmpy = 0;
-            for (let i = 0; i < mps.get(key).length - 1; i++) {
-                tmpx += mps.get(key)[i].x / (i + 1);
-                tmpy += mps.get(key)[i].y / (i + 1);
-            }
-            anx = tmpx;
-            any = tmpy;
-            */
         }
         let x = Math.random() * 2 * step - step;
         let y = Math.random() * 2 * step - step;
@@ -106,13 +99,19 @@
 
         let tag = undefined;
         if (onBoxes(x, y)) {
+            // do not update if the point(x,y) on any boxes.
             x = prex;
             y = prey;
             tag = currentBox.tag;
         }
 
+        let newP = { cartID: key, x: Math.round(x), y: Math.round(y) };
+        if (tag != undefined) newP.tag = tag;
 
-        return { seqID: key, x: Math.round(x), y: Math.round(y), tag: tag };
+        rawData.push(newP);
+
+        return newP;
+        //return { cartID: key, x: Math.round(x), y: Math.round(y), tag: tag };
     }
 
     function canvasClear() {
@@ -206,15 +205,14 @@
         for (let i = 0; i < SEQ_SIZE; i++) {
             let kp = nextSampleData();
             let v;
-            if (kp.tag == undefined) {
-                v = { x: kp.x, y: kp.y };
-
-            }
-            else {
+            if (kp.tag) {
                 v = { x: kp.x, y: kp.y, tag: kp.tag };
             }
-            addP(mps, kp.seqID, v);
-            console.log("id:" + kp.seqID, v);
+            else {
+                v = { x: kp.x, y: kp.y };
+            }
+            addP(mps, kp.cartID, v);
+            console.log("id:" + kp.cartID, v);
         }
         pCount++;
 
@@ -238,10 +236,13 @@
     function switchRenderMode(e) {
         if (renderMode) {
             renderMode = false;
+
+            console.log(rawData);
         }
         else {
             renderMode = true;
         }
+
         mousePreX = e.clientX;
         mousePreY = e.clientY;
         if (!onBoxes(e.clientX, e.clientY)) {
@@ -257,6 +258,8 @@
         let dy = e.clientY - mousePreY;
         currentBox.x += 0.01 * dx;
         currentBox.y += 0.01 * dy;
+
+        drawBoxes();
 
         console.log(e);
     }
@@ -276,6 +279,7 @@
         pCount = 0;
         renderMode = true;
         mps = new Map();
+        rawData = [];
 
         canvas2D = document.getElementById("canvas2d");
         canvas2D.width = GlobalWidth();

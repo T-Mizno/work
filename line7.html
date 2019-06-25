@@ -6,15 +6,109 @@
 
 <BODY>
 
-    <H2>データ形式(仮)</H2>
-    {id:番号, {x:数値, y:数値}}
-    <BR>
-    または
-    <BR>
-    {id:番号, {x:数値, y:数値, tag:文字列}}
+
     <UL>
         <LI><A href="./20190624-trace.html">サンプル</A> </LI>
     </UL>
+
+    <H2>データ形式(仮)</H2>
+    <P>
+        各カートの位置情報が次々に与えられることを想定し、次のようなデータ列を入力とした。
+        <BR>
+        「その他の情報」はさらに複雑なデータ構造(木構造、配列など)を指定することが可能である。
+    </P>
+    <P>
+        {cartID:番号, {x:数値, y:数値}}
+        <BR>
+        または
+        <BR>
+        {cartID:番号, {x:数値, y:数値, tag:その他の情報}}
+    </P>
+    <H3>例</H3>
+    <PRE>
+  {cartID: 1, x: 547, y: 712}
+  {cartID: 7, x: 302, y: 311}
+  {cartID: 2, x: 550, y: 561}
+  {cartID: 0, x: 462, y: 726}
+  {cartID: 8, x: 188, y: 695}
+  {cartID: 8, x: 190, y: 699}
+  {cartID: 7, x: 300, y: 311}
+  {cartID: 7, x: 300, y: 311, tag: "B3"}
+  {cartID: 8, x: 192, y: 702}
+  {cartID: 2, x: 550, y: 561, tag: "E1"}
+  {cartID: 6, x: 653, y: 250}
+  {cartID: 5, x: 458, y: 395}
+  {cartID: 6, x: 653, y: 252}
+  {cartID: 4, x: 473, y: 70}
+  {cartID: 5, x: 459, y: 402}
+  {cartID: 8, x: 194, y: 705}
+  {cartID: 5, x: 461, y: 408}
+  {cartID: 2, x: 549, y: 562}
+  {cartID: 7, x: 300, y: 310}
+  {cartID: 7, x: 300, y: 310}
+  {cartID: 5, x: 464, y: 414}
+  {cartID: 8, x: 196, y: 709}
+  {cartID: 3, x: 482, y: 321}
+  {cartID: 4, x: 472, y: 69}
+  {cartID: 9, x: 454, y: 365}
+  {cartID: 8, x: 198, y: 713}
+  {cartID: 7, x: 300, y: 311}
+  {cartID: 8, x: 200, y: 716}
+  {cartID: 5, x: 467, y: 419}
+  {cartID: 8, x: 203, y: 719}
+  {cartID: 1, x: 549, y: 710}
+  {cartID: 4, x: 470, y: 67}
+  {cartID: 4, x: 468, y: 66}
+  {cartID: 6, x: 653, y: 253}
+  {cartID: 2, x: 548, y: 562}
+  {cartID: 3, x: 484, y: 324}
+  {cartID: 6, x: 653, y: 253}
+  {cartID: 2, x: 548, y: 562}
+  {cartID: 7, x: 301, y: 313}
+  {cartID: 3, x: 486, y: 328}
+  {cartID: 3, x: 488, y: 332}
+  {cartID: 3, x: 490, y: 336}
+  {cartID: 6, x: 652, y: 253}
+  {cartID: 7, x: 301, y: 314}
+  {cartID: 1, x: 551, y: 708}
+  {cartID: 2, x: 548, y: 563}
+  {cartID: 4, x: 467, y: 66}
+  {cartID: 7, x: 301, y: 315}
+  {cartID: 5, x: 470, y: 424}
+  {cartID: 3, x: 492, y: 341}
+  {cartID: 4, x: 466, y: 65}
+  {cartID: 3, x: 494, y: 346}
+  {cartID: 3, x: 495, y: 352}
+  {cartID: 5, x: 474, y: 429}
+  {cartID: 2, x: 548, y: 563}
+  {cartID: 7, x: 300, y: 315}
+  {cartID: 7, x: 300, y: 315, tag: "B3"}
+  {cartID: 5, x: 478, y: 435}
+  {cartID: 2, x: 547, y: 564}
+  {cartID: 6, x: 650, y: 253}
+  {cartID: 0, x: 457, y: 725}
+  {cartID: 7, x: 300, y: 315, tag: "B3"}
+  {cartID: 4, x: 464, y: 64}
+  {cartID: 4, x: 461, y: 62}
+  {cartID: 1, x: 552, y: 706}
+  {cartID: 1, x: 553, y: 704}
+  {cartID: 7, x: 300, y: 315, tag: "B3"}
+  {cartID: 3, x: 496, y: 357}
+  {cartID: 2, x: 547, y: 565}
+  {cartID: 1, x: 555, y: 702}
+  {cartID: 6, x: 650, y: 253, tag: "D1"}
+  {cartID: 3, x: 496, y: 363}
+  {cartID: 6, x: 650, y: 252}
+  {cartID: 8, x: 207, y: 723}
+  {cartID: 3, x: 497, y: 369}
+  {cartID: 8, x: 212, y: 727}
+  {cartID: 4, x: 459, y: 61}
+  {cartID: 7, x: 300, y: 315, tag: "B3"}
+  {cartID: 0, x: 452, y: 724}
+  {cartID: 2, x: 546, y: 566}
+  {cartID: 7, x: 300, y: 315, tag: "B3"}
+  {cartID: 1, x: 557, y: 700}
+    </PRE>
 </BODY>
 
 </HTML>
