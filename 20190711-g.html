@@ -118,7 +118,8 @@
                 xmove = 2 * Math.sign(movMax[0]);
             }
             else {
-                xmove = Math.sin(1.571 * movMax[0] / GlobalWidth() * 10);
+                //xmove = Math.sin(1.571 * movMax[0] / GlobalWidth() * 10);
+                xmove = Math.sin(1.571 * movMax[0] / 10);
             }
 
             let ymove = 0;
@@ -127,7 +128,8 @@
                 console.log("yMoved", objCube1.position.y);
             }
             else {
-                ymove = Math.sin(1.571 * movMax[1] / GlobalHeight() * 10);
+                //ymove = Math.sin(1.571 * movMax[1] / GlobalHeight() * 10);
+                ymove = Math.sin(1.571 * movMax[1] / 10);
                 //console.log("yMoved", objCube1.position.y);
             }
             objCube1.position.x += xmove;
@@ -140,12 +142,12 @@
             }
             //console.log("move "+movMax[0]/40+", "+movMax[1]/30);
 
-            objCube1.rotation.x = Math.asin(movMax[0] / GlobalWidth());
-            objCube1.rotation.y = Math.asin(movMax[1] / GlobalHeight());
+            objCube1.rotation.x = Math.asin(movMax[0] / GlobalWidth() / 50);
+            objCube1.rotation.y = Math.asin(movMax[1] / GlobalHeight() / 50);
 
             if (objModel != null) {
-                objModel.rotation.x = Math.asin(movMax[0] / GlobalWidth());
-                objModel.rotation.y = Math.asin(movMax[1] / GlobalHeight());
+                objModel.rotation.x = Math.asin(movMax[0] / GlobalWidth() / 50);
+                objModel.rotation.y = Math.asin(movMax[1] / GlobalHeight() / 50);
             }
 
             renderer.render(scene, camera);
