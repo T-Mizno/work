@@ -1,0 +1,132 @@
+<HTML>
+
+<HEAD>
+    <TITLE>test</TITLE>
+</HEAD>
+
+<BODY>
+    Rulebase:<BR>
+    <script src="tau-prolog.js"></script>
+    <!-- Program -->
+    <textarea id="program" rows="20" cols="40">
+:- use_module(library(lists)).
+%likes
+likes(sam, [a,b,c,d]).
+likes(dean, [b,d,c]).
+likes(sam, apples).
+likes(dean, whiskey).
+likes(kim, robin).
+likes(sandy, lee).
+likes(sandy, kim).
+likes(robin, cats).
+likes(sandy, X) :- likes(X, cats).
+likes(kim, X) :- likes(X, lee), likes(X, kim).
+likes(X,X).
+
+%sibling
+mother_child(trude, sally).
+father_child(tom, sally).
+father_child(tom, erica).
+father_child(mike, tom).
+sibling(X, Y) :- parent_child(Z, X), parent_child(Z, Y).
+parent_child(X, Y) :- father_child(X, Y).
+parent_child(X, Y) :- mother_child(X, Y).
+
+%zebra
+zebra_owner(Owner) :- houses(Hs), member(h(Owner,zebra,_,_,_), Hs).
+water_drinker(Drinker) :- houses(Hs), member(h(Drinker,_,_,water,_), Hs).
+houses(Hs) :-
+    length(Hs, 5),
+    member(h(english,_,_,_,red), Hs),
+    member(h(spanish,dog,_,_,_), Hs),
+    member(h(_,_,_,coffee,green), Hs),
+    member(h(ukrainian,_,_,tea,_), Hs),
+    next(h(_,_,_,_,green), h(_,_,_,_,white), Hs),
+    member(h(_,snake,winston,_,_), Hs),
+    member(h(_,_,kool,_,yellow), Hs),
+    Hs = [_,_,h(_,_,_,milk,_),_,_],
+    Hs = [h(norwegian,_,_,_,_)|_],
+    next(h(_,fox,_,_,_), h(_,_,chesterfield,_,_), Hs),
+    next(h(_,_,kool,_,_), h(_,horse,_,_,_), Hs),
+    member(h(_,_,lucky,juice,_), Hs),
+    member(h(japanese,_,kent,_,_), Hs),
+    next(h(norwegian,_,_,_,_), h(_,_,_,_,blue), Hs),
+    member(h(_,_,_,water,_), Hs),
+    member(h(_,zebra,_,_,_), Hs).
+next(A, B, Ls) :- append(_, [A,B|_], Ls).
+next(A, B, Ls) :- append(_, [B,A|_], Ls).
+    </textarea>
+
+    <BR>
+    <!-- Name -->
+    <input type="text" id="name" value="" placeholder="query" />
+
+    <!-- Button -->
+    <input type="button" value="Done" id="button" onClick="clickButton();" />
+    <BR>
+    <!-- Answers -->
+    <div id="result"></div>
+
+
+    <script type="text/javascript">
+
+        // Callback function
+        function show() {
+            // Get output container
+            var result = document.getElementById("result");
+            // Return callback function
+            return function (answer) {
+                if (pl.type.is_substitution(answer)) {
+                    if (answer.toString().length > 2) {
+                        result.innerHTML = result.innerHTML + "<div>" + answer + "</div>";
+                    }
+                    else {
+                        result.innerHTML = result.innerHTML + "<div>Yes</div>";
+                    }
+                }
+                /*
+                // Valid answer
+                if (pl.type.is_substitution(answer)) {
+                    // Get the value of the food
+                    var food = answer.lookup("X");
+                    // Get the person
+                    var person = name != "Y" ? name : answer.lookup("Y");
+                    // Show answer
+                    result.innerHTML = result.innerHTML + "<div>" + person + " likes " + food + "</div>";
+                }
+                */
+            };
+        }
+
+        // Show the likes of a person
+        function infer(q) {
+            // Create session
+            var session = pl.create(1000);
+            // Get program
+            var program = document.getElementById("program").value;
+            // Clear output
+            document.getElementById("result").innerHTML = "";
+            // Consult program
+            session.consult(program);
+            // Query goal
+            //session.query("likes(" + name + ", X).");
+            session.query(q);
+            // Find answers
+            //session.answers(show(name), 1000);
+            session.answers(show(), 1000);
+        }
+
+        /** EVENTS */
+
+        // onClick #button
+        function clickButton() {
+            // Get person
+            var q = document.getElementById("name").value;
+            // Get likes
+            infer(q);
+        }
+
+    </script>
+</BODY>
+
+</HTML>
