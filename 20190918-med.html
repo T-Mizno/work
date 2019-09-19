@@ -10,6 +10,9 @@
     let textC = ["C1:痛みが取れること", "C2:眠気が強まるのは嫌だ", "C3:便秘になるのは嫌だ", "C4:医療用でも麻薬は使いたくない", "C5:家族や友人との会話を楽しみたい"];
     let textA = ["A1:100%Doseでモルヒネ開始", "A2:50%Doseでモルヒネ開始", "A3:現状維持"];
 
+    let textSig = ["左側がとても重要", "左側がより重要", "どちらも同じくらい重要", "右側がより重要", "右側がとても重要"];
+    let valSig = [5, 3, 1, 1 / 3, 0.2];
+
     let pcmC = [];
     let nC = 5;
     let wC = [];
@@ -162,6 +165,38 @@
         for (let i = 0; i < mat.length; i++) { x[i] = vec[i]; }
     }
 
+    let defCheckI = 2;
+
+    function writeButtonsRowC(i, j) {
+        let str = "<TR border=\"1\">";
+        str += "<TD style=\"border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;\">" + textC[i] + "</TD>";
+        for (let r = 0; r < textSig.length; r++) {
+            str += "<TD><input name=\"c" + i + j + "\" type=\"radio\" value=\"" + valSig[r] + "\" onchange=\"fc" + i + j + "()\"";
+            if (r == defCheckI) {
+                str += "checked";
+            }
+            str += ">" + textSig[r] + "</TD > ";
+        }
+        str += "<TD style=\"border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;\">&nbsp;" + textC[j] + "</TD>";
+        str += "</TR>";
+        return str;
+    }
+
+    function writeButtonsRowA(k, i, j) {
+        let str = "<TR border=\"1\">";
+        str += "<TD style=\"border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;\">" + textA[i] + "</TD>";
+        for (let r = 0; r < textSig.length; r++) {
+            str += "<TD><input name=\"a" + k + i + j + "\" type=\"radio\" value=\"" + valSig[r] + "\" onchange=\"fa" + k + i + j + "()\"";
+            if (r == defCheckI) {
+                str += "checked";
+            }
+            str += ">" + textSig[r] + "</TD > ";
+        }
+        str += "<TD style=\"border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;\">&nbsp;" + textA[j] + "</TD>";
+        str += "</TR>";
+        return str;
+    }
+
 
     let summary;
 
@@ -214,7 +249,6 @@
         str += "</PRE>";
         summary.innerHTML = str;
         return;
-
     }
 
 
@@ -306,364 +340,61 @@
         【患者さんのご意向】
         <TABLE border="1px">
 
-            <TR border="1">
-                <TD style="border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textC[0]);</script>
-                </TD>
-                <TD><input name="c01" type="radio" value="5" onchange="fc01()">左側がとても重要</TD>
-                <TD><input name="c01" type="radio" value="3" onchange="fc01()">左側がより重要</TD>
-                <TD><input name="c01" type="radio" value="1" onchange="fc01()" checked>どちらも同じくらい重要</TD>
-                <TD><input name="c01" type="radio" value="0.33333333333333" onchange="fc01()">右側がより重要</TD>
-                <TD><input name="c01" type="radio" value="0.2" onchange="fc01()">右側がとても重要</TD>
-                <TD style="border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textC[1]);</script>
-                </TD>
-            </TR>
+            <script>document.write(writeButtonsRowC(0, 1));</script>
+            <script>document.write(writeButtonsRowC(0, 2));</script>
+            <script>document.write(writeButtonsRowC(0, 3));</script>
+            <script>document.write(writeButtonsRowC(0, 4));</script>
 
-            <TR border="1">
-                <TD style="border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textC[0]);</script>
-                </TD>
-                <TD><input name="c02" type="radio" value="5" onchange="fc02()">左側がとても重要</TD>
-                <TD><input name="c02" type="radio" value="3" onchange="fc02()">左側がより重要</TD>
-                <TD><input name="c02" type="radio" value="1" onchange="fc02()" checked>どちらも同じくらい重要</TD>
-                <TD><input name="c02" type="radio" value="0.33333333333333" onchange="fc02()">右側がより重要</TD>
-                <TD><input name="c02" type="radio" value="0.2" onchange="fc02()">右側がとても重要</TD>
-                <TD style="border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textC[2]);</script>
-                </TD>
-            </TR>
+            <script>document.write(writeButtonsRowC(1, 2));</script>
+            <script>document.write(writeButtonsRowC(1, 3));</script>
+            <script>document.write(writeButtonsRowC(1, 4));</script>
 
-            <TR border="1">
-                <TD style="border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textC[0]);</script>
-                </TD>
-                <TD><input name="c03" type="radio" value="5" onchange="fc03()">左側がとても重要</TD>
-                <TD><input name="c03" type="radio" value="3" onchange="fc03()">左側がより重要</TD>
-                <TD><input name="c03" type="radio" value="1" onchange="fc03()" checked>どちらも同じくらい重要</TD>
-                <TD><input name="c03" type="radio" value="0.33333333333333" onchange="fc03()">右側がより重要</TD>
-                <TD><input name="c03" type="radio" value="0.2" onchange="fc03()">右側がとても重要</TD>
-                <TD style="border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textC[3]);</script>
-                </TD>
-            </TR>
+            <script>document.write(writeButtonsRowC(2, 3));</script>
+            <script>document.write(writeButtonsRowC(2, 4));</script>
 
-            <TR border="1">
-                <TD style="border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textC[0]);</script>
-                </TD>
-                <TD><input name="c04" type="radio" value="5" onchange="fc04()">左側がとても重要</TD>
-                <TD><input name="c04" type="radio" value="3" onchange="fc04()">左側がより重要</TD>
-                <TD><input name="c04" type="radio" value="1" onchange="fc04()" checked>どちらも同じくらい重要</TD>
-                <TD><input name="c04" type="radio" value="0.33333333333333" onchange="fc04()">右側がより重要</TD>
-                <TD><input name="c04" type="radio" value="0.2" onchange="fc04()">右側がとても重要</TD>
-                <TD style="border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textC[4]);</script>
-                </TD>
-            </TR>
-
-            <TR border="1">
-                <TD style="border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textC[1]);</script>
-                </TD>
-                <TD><input name="c12" type="radio" value="5" onchange="fc12()">左側がとても重要</TD>
-                <TD><input name="c12" type="radio" value="3" onchange="fc12()">左側がより重要</TD>
-                <TD><input name="c12" type="radio" value="1" onchange="fc12()" checked>どちらも同じくらい重要</TD>
-                <TD><input name="c12" type="radio" value="0.33333333333333" onchange="fc12()">右側がより重要</TD>
-                <TD><input name="c12" type="radio" value="0.2" onchange="fc12()">右側がとても重要</TD>
-                <TD style="border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textC[2]);</script>
-                </TD>
-            </TR>
-
-            <TR border="1">
-                <TD style="border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textC[1]);</script>
-                </TD>
-                <TD><input name="c13" type="radio" value="5" onchange="fc13()">左側がとても重要</TD>
-                <TD><input name="c13" type="radio" value="3" onchange="fc13()">左側がより重要</TD>
-                <TD><input name="c13" type="radio" value="1" onchange="fc13()" checked>どちらも同じくらい重要</TD>
-                <TD><input name="c13" type="radio" value="0.33333333333333" onchange="fc13()">右側がより重要</TD>
-                <TD><input name="c13" type="radio" value="0.2" onchange="fc13()">右側がとても重要</TD>
-                <TD style="border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textC[3]);</script>
-                </TD>
-            </TR>
-
-            <TR border="1">
-                <TD style="border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textC[1]);</script>
-                </TD>
-                <TD><input name="c14" type="radio" value="5" onchange="fc14()">左側がとても重要</TD>
-                <TD><input name="c14" type="radio" value="3" onchange="fc14()">左側がより重要</TD>
-                <TD><input name="c14" type="radio" value="1" onchange="fc14()" checked>どちらも同じくらい重要</TD>
-                <TD><input name="c14" type="radio" value="0.33333333333333" onchange="fc14()">右側がより重要</TD>
-                <TD><input name="c14" type="radio" value="0.2" onchange="fc14()">右側がとても重要</TD>
-                <TD style="border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textC[4]);</script>
-                </TD>
-            </TR>
-
-            <TR border="1">
-                <TD style="border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textC[2]);</script>
-                </TD>
-                <TD><input name="c23" type="radio" value="5" onchange="fc23()">左側がとても重要</TD>
-                <TD><input name="c23" type="radio" value="3" onchange="fc23()">左側がより重要</TD>
-                <TD><input name="c23" type="radio" value="1" onchange="fc23()" checked>どちらも同じくらい重要</TD>
-                <TD><input name="c23" type="radio" value="0.33333333333333" onchange="fc23()">右側がより重要</TD>
-                <TD><input name="c23" type="radio" value="0.2" onchange="fc23()">右側がとても重要</TD>
-                <TD style="border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textC[3]);</script>
-                </TD>
-            </TR>
-
-            <TR border="1">
-                <TD style="border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textC[2]);</script>
-                </TD>
-                <TD><input name="c24" type="radio" value="5" onchange="fc24()">左側がとても重要</TD>
-                <TD><input name="c24" type="radio" value="3" onchange="fc24()">左側がより重要</TD>
-                <TD><input name="c24" type="radio" value="1" onchange="fc24()" checked>どちらも同じくらい重要</TD>
-                <TD><input name="c24" type="radio" value="0.33333333333333" onchange="fc24()">右側がより重要</TD>
-                <TD><input name="c24" type="radio" value="0.2" onchange="fc24()">右側がとても重要</TD>
-                <TD style="border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textC[4]);</script>
-                </TD>
-            </TR>
-
-            <TR border="1">
-                <TD style="border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textC[3]);</script>
-                </TD>
-                <TD><input name="c34" type="radio" value="5" onchange="fc34()">左側がとても重要</TD>
-                <TD><input name="c34" type="radio" value="3" onchange="fc34()">左側がより重要</TD>
-                <TD><input name="c34" type="radio" value="1" onchange="fc34()" checked>どちらも同じくらい重要</TD>
-                <TD><input name="c34" type="radio" value="0.33333333333333" onchange="fc34()">右側がより重要</TD>
-                <TD><input name="c34" type="radio" value="0.2" onchange="fc34()">右側がとても重要</TD>
-                <TD style="border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textC[4]);</script>
-                </TD>
-            </TR>
+            <script>document.write(writeButtonsRowC(3, 4));</script>
 
         </TABLE>
 
         <BR>
         【医療者の判断】
         <BR>
+
         <script>document.write(textC[0]);</script>
         <TABLE border="1px">
-            <TR border="1">
-                <TD style="border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[0]);</script>
-                </TD>
-                <TD><input name="a001" type="radio" value="5" onchange="fa001()">左側がとても重要</TD>
-                <TD><input name="a001" type="radio" value="3" onchange="fa001()">左側がより重要</TD>
-                <TD><input name="a001" type="radio" value="1" onchange="fa001()" checked>どちらも同じくらい重要</TD>
-                <TD><input name="a001" type="radio" value="0.33333333333333" onchange="fa001()">右側がより重要</TD>
-                <TD><input name="a001" type="radio" value="0.2" onchange="fa001()">右側がとても重要</TD>
-                <TD style="border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[1]);</script>
-                </TD>
-            </TR>
-            <TR border="1">
-                <TD style="border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[0]);</script>
-                </TD>
-                <TD><input name="a002" type="radio" value="5" onchange="fa002()">左側がとても重要</TD>
-                <TD><input name="a002" type="radio" value="3" onchange="fa002()">左側がより重要</TD>
-                <TD><input name="a002" type="radio" value="1" onchange="fa002()" checked>どちらも同じくらい重要</TD>
-                <TD><input name="a002" type="radio" value="0.33333333333333" onchange="fa002()">右側がより重要</TD>
-                <TD><input name="a002" type="radio" value="0.2" onchange="fa002()">右側がとても重要</TD>
-                <TD style="border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[2]);</script>
-                </TD>
-            </TR>
-            <TR border="1">
-                <TD style="border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[1]);</script>
-                </TD>
-                <TD><input name="a012" type="radio" value="5" onchange="fa012()">左側がとても重要</TD>
-                <TD><input name="a012" type="radio" value="3" onchange="fa012()">左側がより重要</TD>
-                <TD><input name="a012" type="radio" value="1" onchange="fa012()" checked>どちらも同じくらい重要</TD>
-                <TD><input name="a012" type="radio" value="0.33333333333333" onchange="fa012()">右側がより重要</TD>
-                <TD><input name="a012" type="radio" value="0.2" onchange="fa012()">右側がとても重要</TD>
-                <TD style="border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[2]);</script>
-                </TD>
-            </TR>
+            <script>document.write(writeButtonsRowA(0, 0, 1));</script>
+            <script>document.write(writeButtonsRowA(0, 0, 2));</script>
+            <script>document.write(writeButtonsRowA(0, 1, 2));</script>
         </TABLE>
 
         <script>document.write(textC[1]);</script>
         <TABLE border="1px">
-            <TR border="1">
-                <TD style="border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[0]);</script>
-                </TD>
-                <TD><input name="a101" type="radio" value="5" onchange="fa101()">左側がとても重要</TD>
-                <TD><input name="a101" type="radio" value="3" onchange="fa101()">左側がより重要</TD>
-                <TD><input name="a101" type="radio" value="1" onchange="fa101()" checked>どちらも同じくらい重要</TD>
-                <TD><input name="a101" type="radio" value="0.33333333333333" onchange="fa101()">右側がより重要</TD>
-                <TD><input name="a101" type="radio" value="0.2" onchange="fa101()">右側がとても重要</TD>
-                <TD style="border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[1]);</script>
-                </TD>
-            </TR>
-            <TR border="1">
-                <TD style="border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[0]);</script>
-                </TD>
-                <TD><input name="a102" type="radio" value="5" onchange="fa102()">左側がとても重要</TD>
-                <TD><input name="a102" type="radio" value="3" onchange="fa102()">左側がより重要</TD>
-                <TD><input name="a102" type="radio" value="1" onchange="fa102()" checked>どちらも同じくらい重要</TD>
-                <TD><input name="a102" type="radio" value="0.33333333333333" onchange="fa102()">右側がより重要</TD>
-                <TD><input name="a102" type="radio" value="0.2" onchange="fa102()">右側がとても重要</TD>
-                <TD style="border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[2]);</script>
-                </TD>
-            </TR>
-            <TR border="1">
-                <TD style="border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[1]);</script>
-                </TD>
-                <TD><input name="a112" type="radio" value="5" onchange="fa112()">左側がとても重要</TD>
-                <TD><input name="a112" type="radio" value="3" onchange="fa112()">左側がより重要</TD>
-                <TD><input name="a112" type="radio" value="1" onchange="fa112()" checked>どちらも同じくらい重要</TD>
-                <TD><input name="a112" type="radio" value="0.33333333333333" onchange="fa112()">右側がより重要</TD>
-                <TD><input name="a112" type="radio" value="0.2" onchange="fa112()">右側がとても重要</TD>
-                <TD style="border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[2]);</script>
-                </TD>
-            </TR>
+            <script>document.write(writeButtonsRowA(1, 0, 1));</script>
+            <script>document.write(writeButtonsRowA(1, 0, 2));</script>
+            <script>document.write(writeButtonsRowA(1, 1, 2));</script>
         </TABLE>
 
         <script>document.write(textC[2]);</script>
         <TABLE border="1px">
-            <TR border="1">
-                <TD style="border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[0]);</script>
-                </TD>
-                <TD><input name="a201" type="radio" value="5" onchange="fa201()">左側がとても重要</TD>
-                <TD><input name="a201" type="radio" value="3" onchange="fa201()">左側がより重要</TD>
-                <TD><input name="a201" type="radio" value="1" onchange="fa201()" checked>どちらも同じくらい重要</TD>
-                <TD><input name="a201" type="radio" value="0.33333333333333" onchange="fa201()">右側がより重要</TD>
-                <TD><input name="a201" type="radio" value="0.2" onchange="fa201()">右側がとても重要</TD>
-                <TD style="border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[1]);</script>
-                </TD>
-            </TR>
-            <TR border="1">
-                <TD style="border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[0]);</script>
-                </TD>
-                <TD><input name="a202" type="radio" value="5" onchange="fa202()">左側がとても重要</TD>
-                <TD><input name="a202" type="radio" value="3" onchange="fa202()">左側がより重要</TD>
-                <TD><input name="a202" type="radio" value="1" onchange="fa202()" checked>どちらも同じくらい重要</TD>
-                <TD><input name="a202" type="radio" value="0.33333333333333" onchange="fa202()">右側がより重要</TD>
-                <TD><input name="a202" type="radio" value="0.2" onchange="fa202()">右側がとても重要</TD>
-                <TD style="border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[2]);</script>
-                </TD>
-            </TR>
-            <TR border="1">
-                <TD style="border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[1]);</script>
-                </TD>
-                <TD><input name="a212" type="radio" value="5" onchange="fa212()">左側がとても重要</TD>
-                <TD><input name="a212" type="radio" value="3" onchange="fa212()">左側がより重要</TD>
-                <TD><input name="a212" type="radio" value="1" onchange="fa212()" checked>どちらも同じくらい重要</TD>
-                <TD><input name="a212" type="radio" value="0.33333333333333" onchange="fa212()">右側がより重要</TD>
-                <TD><input name="a212" type="radio" value="0.2" onchange="fa212()">右側がとても重要</TD>
-                <TD style="border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[2]);</script>
-                </TD>
-            </TR>
+            <script>document.write(writeButtonsRowA(2, 0, 1));</script>
+            <script>document.write(writeButtonsRowA(2, 0, 2));</script>
+            <script>document.write(writeButtonsRowA(2, 1, 2));</script>
         </TABLE>
+
         <script>document.write(textC[3]);</script>
         <TABLE border="1px">
-            <TR border="1">
-                <TD style="border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[0]);</script>
-                </TD>
-                <TD><input name="a301" type="radio" value="5" onchange="fa301()">左側がとても重要</TD>
-                <TD><input name="a301" type="radio" value="3" onchange="fa301()">左側がより重要</TD>
-                <TD><input name="a301" type="radio" value="1" onchange="fa301()" checked>どちらも同じくらい重要</TD>
-                <TD><input name="a301" type="radio" value="0.33333333333333" onchange="fa301()">右側がより重要</TD>
-                <TD><input name="a301" type="radio" value="0.2" onchange="fa301()">右側がとても重要</TD>
-                <TD style="border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[1]);</script>
-                </TD>
-            </TR>
-            <TR border="1">
-                <TD style="border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[0]);</script>
-                </TD>
-                <TD><input name="a302" type="radio" value="5" onchange="fa302()">左側がとても重要</TD>
-                <TD><input name="a302" type="radio" value="3" onchange="fa302()">左側がより重要</TD>
-                <TD><input name="a302" type="radio" value="1" onchange="fa302()" checked>どちらも同じくらい重要</TD>
-                <TD><input name="a302" type="radio" value="0.33333333333333" onchange="fa302()">右側がより重要</TD>
-                <TD><input name="a302" type="radio" value="0.2" onchange="fa302()">右側がとても重要</TD>
-                <TD style="border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[2]);</script>
-                </TD>
-            </TR>
-            <TR border="1">
-                <TD style="border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[1]);</script>
-                </TD>
-                <TD><input name="a312" type="radio" value="5" onchange="fa312()">左側がとても重要</TD>
-                <TD><input name="a312" type="radio" value="3" onchange="fa312()">左側がより重要</TD>
-                <TD><input name="a312" type="radio" value="1" onchange="fa312()" checked>どちらも同じくらい重要</TD>
-                <TD><input name="a312" type="radio" value="0.33333333333333" onchange="fa312()">右側がより重要</TD>
-                <TD><input name="a312" type="radio" value="0.2" onchange="fa312()">右側がとても重要</TD>
-                <TD style="border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[2]);</script>
-                </TD>
-            </TR>
+            <script>document.write(writeButtonsRowA(3, 0, 1));</script>
+            <script>document.write(writeButtonsRowA(3, 0, 2));</script>
+            <script>document.write(writeButtonsRowA(3, 1, 2));</script>
         </TABLE>
 
         <script>document.write(textC[4]);</script>
         <TABLE border="1px">
-            <TR border="1">
-                <TD style="border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[0]);</script>
-                </TD>
-                <TD><input name="a401" type="radio" value="5" onchange="fa401()">左側がとても重要</TD>
-                <TD><input name="a401" type="radio" value="3" onchange="fa401()">左側がより重要</TD>
-                <TD><input name="a401" type="radio" value="1" onchange="fa401()" checked>どちらも同じくらい重要</TD>
-                <TD><input name="a401" type="radio" value="0.33333333333333" onchange="fa401()">右側がより重要</TD>
-                <TD><input name="a401" type="radio" value="0.2" onchange="fa401()">右側がとても重要</TD>
-                <TD style="border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[1]);</script>
-                </TD>
-            </TR>
-            <TR border="1">
-                <TD style="border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[0]);</script>
-                </TD>
-                <TD><input name="a402" type="radio" value="5" onchange="fa402()">左側がとても重要</TD>
-                <TD><input name="a402" type="radio" value="3" onchange="fa402()">左側がより重要</TD>
-                <TD><input name="a402" type="radio" value="1" onchange="fa402()" checked>どちらも同じくらい重要</TD>
-                <TD><input name="a402" type="radio" value="0.33333333333333" onchange="fa402()">右側がより重要</TD>
-                <TD><input name="a402" type="radio" value="0.2" onchange="fa402()">右側がとても重要</TD>
-                <TD style="border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[2]);</script>
-                </TD>
-            </TR>
-            <TR border="1">
-                <TD style="border-left-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[1]);</script>
-                </TD>
-                <TD><input name="a412" type="radio" value="5" onchange="fa412()">左側がとても重要</TD>
-                <TD><input name="a412" type="radio" value="3" onchange="fa412()">左側がより重要</TD>
-                <TD><input name="a412" type="radio" value="1" onchange="fa412()" checked>どちらも同じくらい重要</TD>
-                <TD><input name="a412" type="radio" value="0.33333333333333" onchange="fa412()">右側がより重要</TD>
-                <TD><input name="a412" type="radio" value="0.2" onchange="fa412()">右側がとても重要</TD>
-                <TD style="border-right-style: hidden;border-top-style: hidden;border-bottom-style: hidden;">
-                    <script>document.write(textA[2]);</script>
-                </TD>
-            </TR>
+            <script>document.write(writeButtonsRowA(4, 0, 1));</script>
+            <script>document.write(writeButtonsRowA(4, 0, 2));</script>
+            <script>document.write(writeButtonsRowA(4, 1, 2));</script>
         </TABLE>
+
     </form>
 
     <BR>
