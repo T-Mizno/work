@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>Sample</title>
+    <style>
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+<script src="map.js"></script>
+<script>
+
+    const SEQ_SIZE = 10;
+    const QUE_MAX_SIZE = 100;
+
+    const RGBs = ["255, 0, 0", "0, 255, 0", "0, 0, 255", "255, 255, 0", "255, 0, 255", "0, 255, 255"];
+    function idColor(key) {
+        return RGBs[key % RGBs.length];
+    }
+
+    let canvas2D;
+    let context2D;
+    let renderMode;
+
+    let contextBG;
+
+    let rawData;
+    let mps;
+
+    let pCount;
+
+    let boxes;
+    let currentBox;
+    let boxColors = {
+        0: "rgb(0, 0, 0)",
+        1: "rgb(0,0,0)", // floor wihout contents not drawn
+        2: "rgb(255, 0, 0)",
+        3: "rgb(255,255,0)",
+        8: "rgb(255,0,255)"
+    };
+
+    let through;  // array
+    let throughMax;
+
+    function que(aQue, av) {
+        aQue.unshift(av);
+        if (aQue.length > QUE_MAX_SIZE) {
+            aQue.pop();
+        }
+    }
+
+    function addP(aM, aKey, av) {
+        let _ps;
+        if (aM.has(aKey)) {
+            _ps = aM.get(aKey);
+        }
+        else {
+            _ps = new Array();
+        }
+        que(_ps, av);
+        aM.set(aKey, _ps);
+    }
+
+    function GlobalWidth() {
+        return window.innerWidth;
+    }
+    function GlobalHeight() {
+        return window.innerHeight;
+    }
+
+    function BoxWidth() {
+        return GlobalWidth() / floorData.n;
+    }
+    function BoxHeight() {
+        return GlobalHeight() / floorData.m;
+    }
+
+    function nextSampleData() {
+        let step = GlobalWidth() / 1400;
+        if (step < 1) step = 1;
+        if (step > 5) step = 5;
+
+        let key = Math.round(Math.random() * (SEQ_SIZE - 1));
+        let prex;
+        let prey;
+        let anx = 0;
+        let any = 0;
+        if (!mps.has(key)) {
+            prex = Math.random() * GlobalWidth();
+            prey = Math.random() * GlobalHeight();
+        }
+        else {
+            prex = mps.get(key)[0].x;
+            prey = mps.get(key)[0].y;
+            if (mps.get(key).length > 1) {
+                anx = mps.get(key)[1].x;
+                any = mps.get(key)[1].y;
+            }
+            else {
+                anx = prex;
+                any = prey;
+            }
+        }
+        let x = Math.random() * 2 * step - step;
+        let y = Math.random() * 2 * step - step;
+        x = prex + x + (prex - anx);
+        y = prey + y + (prey - any);
+
+        if (x < 50) x = 50;
+        if (y < 50) y = 50;
+        if (x > (GlobalWidth() - 50)) x = GlobalWidth() - 50;
+        if (y > (GlobalHeight() - 50)) y = GlobalHeight() - 50;
+
+
+        let tag = undefined;
+        if (onBoxes(x, y)) {
+            // do not update if the point(x,y) on any boxes.
+            x = prex;
+            y = prey;
+            tag = currentBox.tag;
+        }
+
+        let newP = { cartID: key, x: Math.round(x), y: Math.round(y) };
+        if (tag != undefined) newP.tag = tag;
+
+        rawData.push(newP);
+
+        return newP;
+        //return { cartID: key, x: Math.round(x), y: Math.round(y), tag: tag };
+    }
+
+    function canvasClear() {
+
+        context2D.clearRect(0, 0, context2D.canvas.width, context2D.canvas.height);
+        //context2D.globalAlpha = 0.7;
+        //context2D.fillStyle = "rgba(0.5, 1.0, 0.5, 0.5)";
+        //context2D.fillRect(0, 0, context2D.canvas.width, context2D.canvas.height);
+    }
+
+    function drawBoxes() {
+
+        for (let b of boxes) {
+            if (typeof (b["content"]) === 'undefined') continue;
+
+            if (typeof (boxColors["" + b["content"]]) === 'undefined') {
+                context2D.fillStyle = "rgb(100, 100, 0)";
+            }
+            else {
+                context2D.fillStyle = boxColors["" + b["content"]];
+            }
+            context2D.fillRect(b.x + 1, b.y + 1, b.w - 1, b.h - 1);
+
+            context2D.beginPath();
+            context2D.lineWidth = "1";
+            context2D.strokeStyle = "black";
+            context2D.rect(b.x, b.y, b.w, b.h);
+            context2D.stroke();
+
+            context2D.font = "18px 'Times'";
+            context2D.strokeStyle = "rgb(255,255,255)";
+            context2D.lineWidth = 1;
+            //context2D.strokeText(b.tag, b.x + 10, b.y + 20);
+            context2D.strokeText(b.content, b.x, b.y + BoxHeight());
+        }
+
+    }
+
+    function drawThrough() {
+        for (let i = 0; i < through.length; i++) {
+            for (let j = 0; j < through[i].length; j++) {
+                if (floor[i][j] != 0) {
+                    let colorVal = Math.floor(255 * (1.0 - through[i][j] / throughMax));
+                    context2D.fillStyle = "rgb(255," + colorVal + "," + colorVal + ")";
+                    context2D.fillRect(j * BoxWidth(), i * BoxHeight(), BoxWidth(), BoxHeight());
+                }
+            }
+        }
+    }
+
+    function render(aID, aPs) {
+
+        if (mps.size < 1) return;
+
+        //console.log(aID + ": " + aPs.length);
+        context2D.beginPath();
+        context2D.fillStyle = "rgba(" + idColor(aID) + ", 0.2) ";
+        context2D.arc(aPs[0].x, aPs[0].y, Math.round(50 * Math.sin(((pCount % 60) / 60) * 3.14159)) + 20, 0, 2 * Math.PI, true);
+        context2D.fill();
+
+        context2D.beginPath();
+        context2D.lineWidth = 3;
+        context2D.strokeStyle = "rgba(" + idColor(aID) + ",  0.2) ";
+        context2D.moveTo(aPs[0].x, aPs[0].y);
+        for (let i = 1; i < aPs.length; i++) {
+            context2D.lineTo(aPs[i].x, aPs[i].y);
+        }
+        context2D.stroke();
+
+        for (let i = 0; i < aPs.length; i++) {
+            context2D.beginPath();
+            context2D.fillStyle = "rgba(" + idColor(aID) + ", " + (aPs.length - i) / aPs.length * 0.5 + ")";
+            context2D.arc(aPs[i].x, aPs[i].y, 3, 0, 2 * Math.PI, true);
+            context2D.fill();
+        }
+
+        context2D.font = "18px 'Times'";
+        //context2D.strokeStyle = "rgb(" + idColor(aID) + ")";
+        context2D.strokeStyle = "rgb(255,255,255)";
+        context2D.lineWidth = 1;
+        context2D.strokeText("id=" + aID, aPs[0].x, aPs[0].y + 20);
+    }
+
+    function onBox(box, x, y) {
+        return (box.x <= x) && (x <= box.x + box.w) && (box.y <= y) && (y <= box.y + box.h);
+    }
+
+    function onBoxes(x, y) {
+        for (let b of boxes) {
+            if (onBox(b, x, y)) {
+                currentBox = b;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function update() {
+        //if (mps.size > 1000) return;
+        //if (pCount > 1000) return;
+
+        if (!renderMode) {
+            window.requestAnimationFrame(update);
+            return;
+        }
+
+        for (let i = 0; i < SEQ_SIZE; i++) {
+            let kp = nextSampleData();
+            let v;
+            if (kp.tag) {
+                v = { x: kp.x, y: kp.y, tag: kp.tag };
+            }
+            else {
+                v = { x: kp.x, y: kp.y };
+            }
+            addP(mps, kp.cartID, v);
+            console.log("id:" + kp.cartID, v);
+
+            updateThrough(kp.x, kp.y);
+        }
+        pCount++;
+
+
+        canvasClear();
+
+        drawThrough();
+
+        drawBoxes();
+
+
+
+        let keys = mps.keys();
+        for (k of keys) {
+            render(k, mps.get(k));
+        }
+
+        window.requestAnimationFrame(update);
+    }
+
+    function updateThrough(x, y) {
+        let i = Math.floor(y / BoxHeight());
+        let j = Math.floor(x / BoxWidth());
+        through[i][j]++;
+
+        if (through[i][j] > throughMax) throughMax = through[i][j];
+    }
+
+    let mousePreX;
+    let mousePreY;
+
+    function switchRenderMode(e) {
+        if (renderMode) {
+            renderMode = false;
+
+            console.log(rawData);
+        }
+        else {
+            renderMode = true;
+        }
+
+        mousePreX = e.clientX;
+        mousePreY = e.clientY;
+        if (!onBoxes(e.clientX, e.clientY)) {
+            currentBox = undefined;
+        }
+    }
+
+
+    function onMouseMove(e) {
+        if (renderMode) return;
+        if (currentBox == undefined) return;
+        let dx = e.clientX - mousePreX;
+        let dy = e.clientY - mousePreY;
+        currentBox.x += 0.01 * dx;
+        currentBox.y += 0.01 * dy;
+
+        drawBoxes();
+
+        console.log(e);
+    }
+
+
+
+
+    function setBG() {
+        let canvasBG = document.getElementById("canvasBG");
+        canvasBG.width = GlobalWidth();
+        canvasBG.height = GlobalHeight();
+        contextBG = canvasBG.getContext("2d");
+        //contextBG.globalCompositeOperation = "screen";
+    }
+
+    function addInitP() {
+        let x = 0, y = 0;
+        find_loop:
+        for (let j = floorData.n - 1; j >= 0; j--) {
+            for (let i = floorData.m - 1; i >= 0; i--) {
+
+                if (floor[i][j] == 1) {
+                    x = j * BoxWidth() + BoxWidth() / 2;
+                    y = i * BoxHeight() + BoxHeight() / 2;
+                    break find_loop;
+                }
+            }
+        }
+
+        for (let id = 0; id < SEQ_SIZE; id++) {
+            addP(mps, id, { x: x, y: y });
+        }
+    }
+
+    function init() {
+        pCount = 1;
+        renderMode = true;
+        mps = new Map();
+        rawData = [];
+
+        canvas2D = document.getElementById("canvas2d");
+        canvas2D.width = GlobalWidth();
+        canvas2D.height = GlobalHeight();
+        context2D = canvas2D.getContext("2d");
+        //context2D.globalCompositeOperation = "screen";
+        //context2D.globalCompositeOperation = "lighter";
+        //context2D.globalCompositeOperation = "source-over";
+
+        canvasClear();
+
+        boxes = [];
+
+        for (let i = 0; i < floor.length; i++) {
+            for (let j = 0; j < floor[i].length; j++) {
+                if (floor[i][j] == 1) continue;
+                boxes.push({ x: BoxWidth() * j, y: BoxHeight() * i, w: BoxWidth(), h: BoxHeight(), content: floor[i][j], tag: floor[i][j] + "(" + i + "," + j + ")" })
+            }
+        }
+
+        through = [];
+        throughMax = 0;
+
+        for (let i = 0; i < floor.length; i++) {
+            let row = [];
+            for (let j = 0; j < floor[i].length; j++) {
+                row.push(0);
+            }
+            through.push(row);
+
+
+            addInitP();
+
+        }
+        window.requestAnimationFrame(update);
+    }
+
+    window.onload = init;
+    window.onmousedown = switchRenderMode;
+    window.onmousemove = onMouseMove;
+
+</script>
+
+<!-- <body style="background-image: url(20190326testbg.png); background-size: cover;"> -->
+
+<body>
+
+    <!--<canvas id="canvas2d" style="position:fixed; top:0px; left:0px; background-color:rgba(0,0,0,0);"></canvas>-->
+    <canvas id="canvas2d"></canvas>
+
+</body>
+
+</html>
