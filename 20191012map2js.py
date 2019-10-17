@@ -1,8 +1,8 @@
 import csv
 
 data = []
-M = 50
-N = 50
+M = 60
+N = 55
 
 with open('20191012map.csv') as f:
     reader = csv.reader(f)

@@ -37,9 +37,10 @@
     let boxColors = {
         0: "rgb(0, 0, 0)",
         1: "rgb(0,0,0)", // floor wihout contents not drawn
-        2: "rgb(255, 0, 0)",
-        3: "rgb(255,255,0)",
-        8: "rgb(255,0,255)"
+        2: "rgb(0, 100, 200)",
+        3: "rgb(0,200,100)",
+        4: "rgb(0,150,150)",
+        99: "rgb(50,100,100)"
     };
 
     let through;  // array
@@ -146,7 +147,7 @@
             if (typeof (b["content"]) === 'undefined') continue;
 
             if (typeof (boxColors["" + b["content"]]) === 'undefined') {
-                context2D.fillStyle = "rgb(100, 100, 0)";
+                context2D.fillStyle = "rgb(0, 200, 200)";
             }
             else {
                 context2D.fillStyle = boxColors["" + b["content"]];
@@ -159,11 +160,13 @@
             context2D.rect(b.x, b.y, b.w, b.h);
             context2D.stroke();
 
-            context2D.font = "18px 'Times'";
-            context2D.strokeStyle = "rgb(255,255,255)";
-            context2D.lineWidth = 1;
-            //context2D.strokeText(b.tag, b.x + 10, b.y + 20);
-            context2D.strokeText(b.content, b.x, b.y + BoxHeight());
+            if (b.content != 0) {
+                context2D.font = "18px 'Times'";
+                context2D.strokeStyle = "rgb(255,255,255)";
+                context2D.lineWidth = 1;
+                //context2D.strokeText(b.tag, b.x + 10, b.y + 20);
+                context2D.strokeText(b.content, b.x, b.y + BoxHeight());
+            }
         }
 
     }
@@ -292,6 +295,8 @@
 
         mousePreX = e.clientX;
         mousePreY = e.clientY;
+
+        console.log("ONONONO");
         if (!onBoxes(e.clientX, e.clientY)) {
             currentBox = undefined;
         }
@@ -301,13 +306,18 @@
     function onMouseMove(e) {
         if (renderMode) return;
         if (currentBox == undefined) return;
+        if (currentBox.content == 0) return;
+
         let dx = e.clientX - mousePreX;
         let dy = e.clientY - mousePreY;
-        currentBox.x += 0.01 * dx;
-        currentBox.y += 0.01 * dy;
+
+        currentBox.x += dx;
+        currentBox.y += dy;
+
+        mousePreX = e.clientX;
+        mousePreY = e.clientY;
 
         drawBoxes();
-
         console.log(e);
     }
 
