@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+    <title>Example</title>
+    <script src="http://threejs.org/build/three.min.js"></script>
+    <script src="http://threejs.org/examples/js/libs/stats.min.js"></script>
+    <script src="http://threejs.org/examples/js/libs/dat.gui.min.js"></script>
+    <script src="https://kesuiket.github.io/samples/threejs/libs/chroma.js"></script>
+    <script src="http://threejs.org/examples/js/controls/TrackballControls.js"></script>
+
+    <script src="20191031-img.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- sample https://media.gettyimages.com/vectors/house-plan-top-view-with-garden-vector-id472282913 -->
+
+    <div id="Stats-output">
+    </div>
+    <!-- Div which will hold the Output -->
+    <div id="WebGL-output">
+    </div>
+
+
+    <!-- Javascript code that runs our Three.js examples -->
+    <script type="text/javascript">
+
+        let MIN_XZ = -50;
+        let MAX_XZ = 50;
+
+        let GRID_SIZE = 80;
+
+        let UNIT = (MAX_XZ - MIN_XZ) / GRID_SIZE; // unit length
+
+        let imgMatrix;
+        function newMatrix(m, n) {
+            let a = [];
+            for (let i = 0; i < m; i++) {
+                a[i] = [];
+                for (let j = 0; j < n; j++) {
+                    a[i][j] = 0;
+                }
+            }
+            return a;
+        }
+
+        imgMatrix = newMatrix(GRID_SIZE, GRID_SIZE);
+        for (let i = 0; i < GRID_SIZE; i++) {
+            for (let j = 0; j < GRID_SIZE; j++) {
+                imgMatrix[i][j] = parseInt(img[i][j], 16);
+            }
+        }
+
+        // once everything is loaded, we run our Three.js stuff.
+        function init() {
+
+            var clock = new THREE.Clock();
+
+            var stats = initStats();
+
+            // create a scene, that will hold all our elements such as objects, cameras and lights.
+            var scene = new THREE.Scene();
+
+            // create a camera, which defines where we're looking at.
+            //var camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            let camera = new THREE.PerspectiveCamera();
+            camera.position.x = 0;
+            camera.position.y = 50;
+            camera.position.z = 100;
+
+            // create a render and set the size
+            var webGLRenderer = new THREE.WebGLRenderer();
+            webGLRenderer.setClearColor(new THREE.Color(0x000));
+            webGLRenderer.setSize(window.innerWidth, window.innerHeight);
+            webGLRenderer.shadowMap.enabled = true;
+
+
+            // position and point the camera to the center of the scene
+            // default 100, 100, 300 look at 0, 0, 0
+            //camera.position.x = 100;
+            //camera.position.y = 10;
+            //camera.position.z = 200;
+            camera.lookAt(new THREE.Vector3(0, 0, 0));
+
+            //var intersects = raycaster.intersectObjects( objects, recursiveFlag );
+
+
+            document.getElementById("WebGL-output").appendChild(webGLRenderer.domElement);
+
+            var trackballControls = new THREE.TrackballControls(camera, webGLRenderer.domElement);
+            //var trackballControls = new THREE.TrackballControls(camera);
+
+            trackballControls.rotateSpeed = 1.0;
+            trackballControls.zoomSpeed = 1.0;
+            trackballControls.panSpeed = 1.0;
+            //        trackballControls.noZoom=false;
+            //        trackballControls.noPan=false;
+            trackballControls.staticMoving = true;
+            //        trackballControls.dynamicDampingFactor=0.3;
+
+            var ambientLight = new THREE.AmbientLight(0x383838);
+            scene.add(ambientLight);
+
+            // add spotlight for the shadows
+            var spotLight = new THREE.SpotLight(0xffffff);
+            spotLight.position.set(300, 300, 300);
+            spotLight.intensity = 1;
+            scene.add(spotLight);
+
+            // add the output of the renderer to the html element
+
+
+            // call the render function
+            var step = 0;
+
+            var gui = new dat.GUI();
+            var mesh;
+
+
+            render();
+
+
+            function gridXZ(ik) {
+                return UNIT * ik + MIN_XZ;
+            }
+
+            function addUnitCube(i, j, k, c, h) {
+
+                var cubeGeometry = new THREE.BoxGeometry(UNIT, UNIT + 3 * UNIT * h, UNIT);
+                var cubeMaterial = new THREE.MeshLambertMaterial({ color: c, transparent: true, opacity: 0.8 });
+                var cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+                //cube.castShadow = true;
+
+                // position the cube
+                cube.position.x = gridXZ(i);
+                cube.position.y = (UNIT + 3 * UNIT * h) / 2;
+                cube.position.z = gridXZ(k);
+
+                cube.defColor = 0x999944;
+
+                // add the cube to the scene
+                scene.add(cube);
+            }
+
+
+            for (let i = 0; i < GRID_SIZE; i++) {
+                for (let k = 0; k < GRID_SIZE; k++) {
+                    let rStr = img[i][k].substr(2, 2);
+                    let gStr = img[i][k].substr(4, 2);
+                    let bStr = img[i][k].substr(6, 2);
+                    let r = parseInt("0x" + rStr, 16);
+                    let g = parseInt("0x" + gStr, 16);
+                    let b = parseInt("0x" + bStr, 16);
+                    let h;
+                    if ((g > r) && (g > b)) {
+                        h = g / 256;
+                    }
+                    else h = 0;
+                    addUnitCube(i, 0, k, imgMatrix[i][k], h);
+                }
+            }
+
+            function addCube(aName, x, y, z, c, px, pz) {
+                var cubeGeometry = new THREE.BoxGeometry(x, y, z);
+                var cubeMaterial = new THREE.MeshLambertMaterial({ color: c, transparent: true, opacity: 0.8 });
+                var cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+                //cube.castShadow = true;
+
+                // position the cube
+                cube.position.x = 20 + px;
+                cube.position.y = 1 + y / 2;
+                cube.position.z = 20 + pz;
+
+                cube.name = aName;
+                cube.defColor = c;
+
+                // add the cube to the scene
+                scene.add(cube);
+            }
+
+            //scene.add(new THREE.AxesHelper(20));
+
+            function render() {
+                stats.update();
+                var delta = clock.getDelta();
+
+                if (mesh) {
+                    //   mesh.rotation.y+=0.006;
+                }
+
+                requestAnimationFrame(render);
+
+                //trackballControls.update(delta);
+                trackballControls.update();
+                //webGLRenderer.clear();
+                // render using requestAnimationFrame
+
+                webGLRenderer.render(scene, camera)
+            }
+
+
+
+            function initStats() {
+
+                var stats = new Stats();
+                stats.setMode(0); // 0: fps, 1: ms
+
+                // Align top-left
+                stats.domElement.style.position = 'absolute';
+                stats.domElement.style.left = '0px';
+                stats.domElement.style.top = '0px';
+
+                document.getElementById("Stats-output").appendChild(stats.domElement);
+
+                return stats;
+            }
+        }
+        window.onload = init;
+    </script>
+</body>
+
+</html>
