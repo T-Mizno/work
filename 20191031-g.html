@@ -12,6 +12,8 @@
     <script src="https://threejs.org/examples/js/controls/TrackballControls.js"></script>
 
     <script src="20191031-img.js"></script>
+    <script src="20191031-rete.js"></script>
+    <script src="20191031-rb.js"></script>
 
     <style>
         body {
@@ -41,7 +43,13 @@
 
         let UNIT = (MAX_XZ - MIN_XZ) / GRID_SIZE; // unit length
 
+        let RB = jsonStr2RB(RBStr);
+        console.log(strRB(RB));
+        let rete = constructRETE(RB);
+
         let imgMatrix;
+        let blockMatrix;
+
         function newMatrix(m, n) {
             let a = [];
             for (let i = 0; i < m; i++) {
@@ -58,6 +66,42 @@
             for (let j = 0; j < GRID_SIZE; j++) {
                 imgMatrix[i][j] = parseInt(img[i][j], 16);
             }
+        }
+
+        blockMatrix = newMatrix(GRID_SIZE, GRID_SIZE);
+
+        function rgbFromHex(h) {
+            let b = h % 0x100;
+            let g = h % 0x10000 - b;
+            let r = (h - g - b);
+            return { r: r / 0x10000, g: g / 0x100, b: b };
+        }
+
+        function isWall(r, g, b) {
+            //return (r > g * 1.5) && (r > b * 1.5);// && (g < 0.5) && (b < 0.5);
+            return r < 0.5 && g < 0.5 && b < 0.5;
+        }
+        function isWallHex(r, g, b) {
+            return isWall(r / 256, g / 256, b / 256);
+        }
+        function isWallBlock(block) {
+            return isWall(block.material.color["r"], block.material.color["g"], block.material.color["b"]);
+        }
+
+        function isTree(r, g, b) {
+            return (g > r * 1.2) && (g > b * 1.2);
+        }
+        function isTreeHex(r, g, b) {
+            return isTree(r / 256, g / 256, b / 256);
+        }
+        function isTreeBlock(block) {
+            return isTree(block.material.color["r"], block.material.color["g"], block.material.color["b"]);
+        }
+
+        function whatBlock(block) {
+            if (isTreeBlock) return "tree";
+            if (isWallBlock) return "wall";
+            return "blank";
         }
 
         // once everything is loaded, we run our Three.js stuff.
@@ -135,40 +179,42 @@
 
             function addUnitCube(i, j, k, c, h) {
 
-                var cubeGeometry = new THREE.BoxGeometry(UNIT, UNIT + 3 * UNIT * h, UNIT);
+                var cubeGeometry = new THREE.BoxGeometry(UNIT, UNIT, UNIT);
                 var cubeMaterial = new THREE.MeshLambertMaterial({ color: c, transparent: true, opacity: 0.8 });
                 var cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
                 //cube.castShadow = true;
 
                 // position the cube
                 cube.position.x = gridXZ(i);
-                cube.position.y = (UNIT + 3 * UNIT * h) / 2;
+                cube.position.y = 0;
                 cube.position.z = gridXZ(k);
 
-                cube.defColor = 0x999944;
+                cube.scale.y = 1 + h;
 
+                //cube.defColor = 0x999944;
+                cube.material.needsUpdate = true;
+                cube.needsUpdate = true;
+                cube.geometry.needsUpdate = true;
                 // add the cube to the scene
                 scene.add(cube);
+                return cube;
             }
 
 
             for (let i = 0; i < GRID_SIZE; i++) {
                 for (let k = 0; k < GRID_SIZE; k++) {
-                    let rStr = img[i][k].substr(2, 2);
-                    let gStr = img[i][k].substr(4, 2);
-                    let bStr = img[i][k].substr(6, 2);
-                    let r = parseInt("0x" + rStr, 16);
-                    let g = parseInt("0x" + gStr, 16);
-                    let b = parseInt("0x" + bStr, 16);
-                    let h;
-                    if ((g > r) && (g > b)) {
-                        h = g / 256;
-                    }
-                    else h = 0;
-                    addUnitCube(i, 0, k, imgMatrix[i][k], h);
+                    let color = rgbFromHex(imgMatrix[i][k]);
+                    let r = color.r;
+                    let g = color.g;
+                    let b = color.b;
+                    //if (i == 10 && k == 50) console.log(r + " " + g + " " + b);
+                    let h = 0;
+                    if (isTreeHex(r, g, b)) h = g / 256 + 3;
+                    if (isWallHex(r, g, b)) h = r / 256 + 2;
+                    blockMatrix[i][k] = addUnitCube(i, 0, k, imgMatrix[i][k], h);
                 }
             }
-
+            /*
             function addCube(aName, x, y, z, c, px, pz) {
                 var cubeGeometry = new THREE.BoxGeometry(x, y, z);
                 var cubeMaterial = new THREE.MeshLambertMaterial({ color: c, transparent: true, opacity: 0.8 });
@@ -186,7 +232,7 @@
                 // add the cube to the scene
                 scene.add(cube);
             }
-
+            */
             //scene.add(new THREE.AxesHelper(20));
 
             function render() {
@@ -208,7 +254,6 @@
             }
 
 
-
             function initStats() {
 
                 var stats = new Stats();
@@ -223,6 +268,118 @@
 
                 return stats;
             }
+
+            function replaceBlock(f, t) {
+                let r = t.material.color["r"];
+                let g = t.material.color["g"];
+                let b = t.material.color["b"];
+                let tmpScale = t.scale.y;
+
+                t.material.color["r"] = f.material.color["r"];
+                t.material.color["g"] = f.material.color["g"];
+                t.material.color["b"] = f.material.color["b"];
+                t.scale.y = f.scale.y;
+                f.material.color["r"] = r;
+                f.material.color["g"] = g;
+                f.material.color["b"] = b;
+                f.scale.y = tmpScale;
+            }
+            function moveBlock(f, t) {
+                t.material.color["r"] = f.material.color["r"];
+                t.material.color["g"] = f.material.color["g"];
+                t.material.color["b"] = f.material.color["b"];
+                t.scale.y = f.scale.y;
+                f.material.color["r"] = 1;
+                f.material.color["g"] = 1;
+                f.material.color["b"] = 1;
+                f.scale.y = 1;
+
+            }
+            function update() {
+                for (let i = 1; i < GRID_SIZE - 1; i++) {
+                    for (let k = 1; k < GRID_SIZE - 1; k++) {
+                        let wm = [];
+                        if (k < GRID_SIZE / 2) wm.push(["here", "is", "north-area"]);
+                        else wm.push(["here", "is", "south-area"]);
+                        if (i < GRID_SIZE / 2) wm.push(["here", "is", "east-area"]);
+                        else wm.push(["here", "is", "west-area"]);
+
+                        wm.push(["this-block", "is", whatBlock(blockMatrix[i][k])]);
+                        wm.push(["north-side", "is", whatBlock(blockMatrix[i][k - 1])]);
+                        wm.push(["south-side", "is", whatBlock(blockMatrix[i][k + 1])]);
+                        wm.push(["east-side", "is", whatBlock(blockMatrix[i + 1][k])]);
+                        wm.push(["west-side", "is", whatBlock(blockMatrix[i - 1][k])]);
+
+                        let WM = {};
+                        WM["wm"] = wm;
+                        WM["doc"] = "[i=" + i + ", k=" + k + "]";
+                        let beforesize = WM.wm.length;
+                        runRETE(RB, WM, rete);
+                        let aftersize = WM.wm.length;
+                        if (aftersize > beforesize) {
+                            console.log("after");
+                            console.log(strWM(WM));
+                        }
+                        for (let a of rete["alphaNodes"]) clearNode(a);
+                        for (let b of rete["betaNodes"]) clearNode(b);
+                    }
+                }
+            }
+            function updateR() {
+                for (let i = 1; i < GRID_SIZE - 1; i++) {
+                    for (let k = 1; k < GRID_SIZE - 1; k++) {
+                        if (isTreeBlock(blockMatrix[i][k]) && !isWallBlock(blockMatrix[i][k - 1])) {
+                            replaceBlock(blockMatrix[i][k], blockMatrix[i][k - 1]);
+                        }
+                    }
+                }
+            }
+            function updateB() {
+                for (let i = 1; i < GRID_SIZE - 1; i++) {
+                    for (let k = GRID_SIZE - 1; k >= 1; k--) {
+                        if (isTreeBlock(blockMatrix[i][k - 1]) && !isWallBlock(blockMatrix[i][k])) {
+                            replaceBlock(blockMatrix[i][k - 1], blockMatrix[i][k]);
+                        }
+                    }
+                }
+            }
+            function updateL() {
+                for (let i = 1; i < GRID_SIZE - 1; i++) {
+                    for (let k = 1; k < GRID_SIZE - 1; k++) {
+                        if (isTreeBlock(blockMatrix[i][k]) && !isWallBlock(blockMatrix[i + 1][k])) {
+                            replaceBlock(blockMatrix[i][k], blockMatrix[i + 1][k]);
+                        }
+                    }
+                }
+            }
+            function updateF() {
+                for (let i = GRID_SIZE - 2; i >= 2; i--) {
+                    for (let k = 1; k < GRID_SIZE - 1; k++) {
+                        if (isTreeBlock(blockMatrix[i][k]) && !isWallBlock(blockMatrix[i + 1][k])) {
+                            replaceBlock(blockMatrix[i][k], blockMatrix[i + 1][k]);
+                        }
+                    }
+                }
+            }
+            document.addEventListener('keydown', (event) => {
+                var keyName = event.key;
+                if (keyName == ' ') {
+                    update();
+                }
+                if (keyName == 'r') {
+                    updateR();
+                }
+                if (keyName == 'b') {
+                    updateB();
+                }
+                if (keyName == 'l') {
+                    updateL();
+                }
+                if (keyName == 'f') {
+                    updateF();
+                }
+            });
+
         }
         window.onload = init;
     </script>

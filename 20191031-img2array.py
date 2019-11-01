@@ -6,7 +6,7 @@ M = 80
 N = M
 
 # 元となる画像の読み込み
-imgOrigin = Image.open('./gardenPlan.jpg')
+imgOrigin = Image.open('./gardenPlan1.jpg')
 
 img = imgOrigin.resize((M, N), Image.LANCZOS)
 
