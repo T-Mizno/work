@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+    <title>Example</title>
+    <script src="https://threejs.org/build/three.min.js"></script>
+    <script src="https://threejs.org/examples/js/libs/stats.min.js"></script>
+    <script src="https://threejs.org/examples/js/libs/dat.gui.min.js"></script>
+    <script src="https://kesuiket.github.io/samples/threejs/libs/chroma.js"></script>
+    <script src="https://threejs.org/examples/js/controls/TrackballControls.js"></script>
+
+    <script src="img.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- sample https://media.gettyimages.com/vectors/house-plan-top-view-with-garden-vector-id472282913 -->
+
+    <div id="Stats-output">
+    </div>
+    <!-- Div which will hold the Output -->
+    <div id="WebGL-output">
+    </div>
+
+
+    <!-- Javascript code that runs our Three.js examples -->
+    <script type="text/javascript">
+
+        let GRID_SIZE_Z = imgData["m"];
+        let GRID_SIZE_X = imgData["n"];
+        console.log(GRID_SIZE_Z, GRID_SIZE_X);
+
+        let MIN_X = -50;
+        let MAX_X = 50;
+        let MAX_Z = MAX_X / GRID_SIZE_X * GRID_SIZE_Z;
+        let MIN_Z = -MAX_Z;
+
+
+        let UNIT = (MAX_X - MIN_X) / GRID_SIZE_X; // unit length
+
+
+
+        let imgMatrix;
+        let blockMatrix;
+
+        function newMatrix(m, n) {
+            let a = [];
+            for (let i = 0; i < m; i++) {
+                a[i] = [];
+                for (let j = 0; j < n; j++) {
+                    a[i][j] = 0;
+                }
+            }
+            return a;
+        }
+
+        imgMatrix = newMatrix(GRID_SIZE_Z, GRID_SIZE_X);
+        for (let i = 0; i < GRID_SIZE_Z; i++) {
+            for (let j = 0; j < GRID_SIZE_X; j++) {
+                imgMatrix[i][j] = parseInt(img[i][j], 16);
+            }
+        }
+
+        blockMatrix = newMatrix(GRID_SIZE_Z, GRID_SIZE_X);
+
+        function rgbFromHex(h) {
+            let b = h % 0x100;
+            let g = h % 0x10000 - b;
+            let r = (h - g - b);
+            return { r: r / 0x10000, g: g / 0x100, b: b };
+        }
+
+        function isFloor(r, g, b) {
+            return r > 0.9 && g > 0.9 && b > 0.9;
+        }
+        function isFloorHex(r, g, b) {
+            return isFloor(r / 256, g / 256, b / 256);
+        }
+
+        function isWall(r, g, b) {
+            //return (r > g * 1.5) && (r > b * 1.5);// && (g < 0.5) && (b < 0.5);
+            return r < 0.5 && g < 0.5 && b < 0.5;
+        }
+        function isWallHex(r, g, b) {
+            return isWall(r / 256, g / 256, b / 256);
+        }
+        function isWallBlock(block) {
+            return isWall(block.material.color["r"], block.material.color["g"], block.material.color["b"]);
+        }
+
+        function isTree(r, g, b) {
+            return (g > r * 1.2) && (g > b * 1.2);
+        }
+        function isTreeHex(r, g, b) {
+            return isTree(r / 256, g / 256, b / 256);
+        }
+        function isTreeBlock(block) {
+            return isTree(block.material.color["r"], block.material.color["g"], block.material.color["b"]);
+        }
+
+        function whatBlock(block) {
+            if (isTreeBlock) return "tree";
+            if (isWallBlock) return "wall";
+            return "blank";
+        }
+
+        // once everything is loaded, we run our Three.js stuff.
+        function init() {
+
+            var clock = new THREE.Clock();
+
+            var stats = initStats();
+
+            var scene = new THREE.Scene();
+
+            let camera = new THREE.PerspectiveCamera();
+            camera.position.x = 0;
+            camera.position.y = 100;
+            camera.position.z = 10;
+
+            camera.lookAt(new THREE.Vector3(0, 0, 0));
+
+            // create a render and set the size
+            var webGLRenderer = new THREE.WebGLRenderer();
+            webGLRenderer.setClearColor(new THREE.Color(0x000));
+            webGLRenderer.setSize(window.innerWidth, window.innerHeight);
+            webGLRenderer.shadowMap.enabled = true;
+
+
+            document.getElementById("WebGL-output").appendChild(webGLRenderer.domElement);
+
+            var trackballControls = new THREE.TrackballControls(camera, webGLRenderer.domElement);
+
+            trackballControls.rotateSpeed = 1.0;
+            trackballControls.zoomSpeed = 1.0;
+            trackballControls.panSpeed = 1.0;
+            //        trackballControls.noZoom=false;
+            //        trackballControls.noPan=false;
+            trackballControls.staticMoving = true;
+            //        trackballControls.dynamicDampingFactor=0.3;
+
+            var ambientLight = new THREE.AmbientLight(0x383838);
+            scene.add(ambientLight);
+
+            // add spotlight for the shadows
+            var spotLight = new THREE.SpotLight(0xffffff);
+            spotLight.position.set(300, 300, 300);
+            spotLight.intensity = 1;
+            scene.add(spotLight);
+
+            var step = 0;
+
+            var gui = new dat.GUI();
+            var mesh;
+
+
+            render();
+
+
+            function gridX(k) {
+                return UNIT * k + MIN_X;
+            }
+            function gridZ(i) {
+                return UNIT * i + MIN_Z;
+            }
+
+            function addUnitCube(i, j, k, c, h) {
+
+                var cubeGeometry = new THREE.BoxGeometry(UNIT, UNIT, UNIT);
+                var cubeMaterial = new THREE.MeshLambertMaterial({ color: c, transparent: true, opacity: 0.9 });
+                var cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+                //cube.castShadow = true;
+
+                // position the cube
+                cube.position.x = gridX(k);
+                cube.position.y = 0;
+                cube.position.z = gridZ(i);
+
+                cube.scale.y = 1 + h;
+
+                //cube.defColor = 0x999944;
+                cube.material.needsUpdate = true;
+                cube.needsUpdate = true;
+                cube.geometry.needsUpdate = true;
+                // add the cube to the scene
+                scene.add(cube);
+                return cube;
+            }
+
+            function addFloor() {
+                var cubeGeometry = new THREE.BoxGeometry(MAX_X - MIN_X, UNIT, (MAX_X - MIN_X) * GRID_SIZE_Z / GRID_SIZE_X);
+                var cubeMaterial = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 1.0 });
+                var cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+
+                cube.position.x = 0;
+                cube.position.y = 0;
+                cube.position.z = 0;
+
+                cube.scale.y = 1;
+
+                scene.add(cube);
+                return cube;
+            }
+
+            addFloor();
+            for (let i = 0; i < GRID_SIZE_Z; i++) {
+                for (let k = 0; k < GRID_SIZE_X; k++) {
+                    let color = rgbFromHex(imgMatrix[i][k]);
+
+                    let r = color.r;
+                    let g = color.g;
+                    let b = color.b;
+
+                    if (isFloorHex(r, g, b)) continue;
+
+                    let h = 5;
+                    if (isWallHex(r, g, b)) h = 10;
+                    blockMatrix[i][k] = addUnitCube(i, 0, k, imgMatrix[i][k], h);
+                }
+            }
+
+            function render() {
+                stats.update();
+                var delta = clock.getDelta();
+
+                if (mesh) {
+                    //   mesh.rotation.y+=0.006;
+                }
+
+                requestAnimationFrame(render);
+
+                //trackballControls.update(delta);
+                trackballControls.update();
+                //webGLRenderer.clear();
+                // render using requestAnimationFrame
+
+                webGLRenderer.render(scene, camera)
+            }
+
+
+            function initStats() {
+
+                var stats = new Stats();
+                stats.setMode(0); // 0: fps, 1: ms
+
+                // Align top-left
+                stats.domElement.style.position = 'absolute';
+                stats.domElement.style.left = '0px';
+                stats.domElement.style.top = '0px';
+
+                document.getElementById("Stats-output").appendChild(stats.domElement);
+
+                return stats;
+            }
+
+        }
+        window.onload = init;
+    </script>
+</body>
+
+</html>
