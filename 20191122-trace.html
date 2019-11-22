@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>Sample</title>
+    <style>
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+<script src="map.js"></script>
+<script>
+
+    const SEQ_SIZE = 3;
+    const QUE_MAX_SIZE = 100;
+
+    const RGBs = ["255, 0, 0", "0, 255, 0", "0, 0, 255", "255, 255, 0", "255, 0, 255", "0, 255, 255"];
+
+
+    function idColor(key) {
+        return RGBs[key % RGBs.length];
+    }
+
+    let canvas2D;
+    let context2D;
+    let renderMode;
+
+    let contextBG;
+
+    let rawData;
+    let mps;
+
+    let pCount;
+
+    let boxes;
+    let currentBox;
+
+    const boxColors = {
+        0: "rgb(171, 223, 234)",
+        1: "rgb(248, 168, 153)",
+        2: "rgb(233, 51, 56)",
+        3: "rgb(192, 191, 192)",
+        4: "rgb(101, 103, 173)",
+        5: "rgb(149, 149, 201)",
+        6: "rgb(0, 0, 255)",
+        7: "rgb(167, 211, 139)",
+        8: "rgb(249, 243, 154)",
+        9: "rgb(195, 134, 73)",
+        10: "rgb(0, 0, 0)",
+        11: "rgb(255, 255, 255)"//上に何もない床
+    };
+
+    function withoutContents(c) {
+        return c == 11;
+    }
+
+    let through;    // array
+    let throughMax;
+
+    let dtList = [];
+    let dtn = 4;
+    for (let dt = 0; dt < dtn; dt++) {
+        let theta = 2 * Math.PI / dtn * dt;
+        dtList.push({ x: Math.min(BoxWidth(), BoxHeight()) * Math.cos(theta), y: Math.min(BoxWidth(), BoxHeight()) * Math.sin(theta) });
+    }
+
+
+    let agent0 = { todo: [7, 6, 1, 7, 1, 2, 7, 4, 3, 6], done: [], path: [], pred: [], goal: { x: 0, y: 0 }, seekDepth: dtn + 1, dist: 0, reached: false };
+
+
+    function que(aQue, av) {
+        aQue.unshift(av);
+        if (aQue.length > QUE_MAX_SIZE) {
+            aQue.pop();
+        }
+    }
+
+    function addP(aM, aKey, av) {
+        let _ps;
+        if (aM.has(aKey)) {
+            _ps = aM.get(aKey);
+        }
+        else {
+            _ps = new Array();
+        }
+        que(_ps, av);
+        aM.set(aKey, _ps);
+    }
+
+    function GlobalWidth() {
+        return window.innerWidth;
+    }
+    function GlobalHeight() {
+        return window.innerHeight;
+    }
+
+    function BoxWidth() {
+        return GlobalWidth() / floorData.n;
+    }
+    function BoxHeight() {
+        return GlobalHeight() / floorData.m;
+    }
+
+    function nextSampleData() {
+        let step = GlobalWidth() / 1400;
+        if (step < 1) step = 1;
+        if (step > 5) step = 5;
+
+        let key = Math.round(Math.random() * (SEQ_SIZE - 1));
+        let prex;
+        let prey;
+        let anx = 0;
+        let any = 0;
+        if (!mps.has(key)) {
+            prex = Math.random() * GlobalWidth();
+            prey = Math.random() * GlobalHeight();
+        }
+        else {
+            prex = mps.get(key)[0].x;
+            prey = mps.get(key)[0].y;
+            if (mps.get(key).length > 1) {
+                anx = mps.get(key)[1].x;
+                any = mps.get(key)[1].y;
+            }
+            else {
+                anx = prex;
+                any = prey;
+            }
+        }
+        let x = Math.random() * 2 * step - step;
+        let y = Math.random() * 2 * step - step;
+        x = prex + x + (prex - anx);
+        y = prey + y + (prey - any);
+
+        if (x < 50) x = 50;
+        if (y < 50) y = 50;
+        if (x > (GlobalWidth() - 50)) x = GlobalWidth() - 50;
+        if (y > (GlobalHeight() - 50)) y = GlobalHeight() - 50;
+
+
+        let tag = undefined;
+        if (onBoxes(x, y)) {
+            // do not update if the point(x,y) on any boxes.
+            x = prex;
+            y = prey;
+            tag = currentBox.tag;
+        }
+
+        let newP = { cartID: key, x: Math.round(x), y: Math.round(y) };
+        if (tag != undefined) newP.tag = tag;
+
+        rawData.push(newP);
+
+        return newP;
+        //return { cartID: key, x: Math.round(x), y: Math.round(y), tag: tag };
+    }
+
+    function canvasClear() {
+
+        context2D.clearRect(0, 0, context2D.canvas.width, context2D.canvas.height);
+        //context2D.globalAlpha = 0.7;
+        //context2D.fillStyle = "rgba(0.5, 1.0, 0.5, 0.5)";
+        //context2D.fillRect(0, 0, context2D.canvas.width, context2D.canvas.height);
+    }
+
+    function drawBoxes() {
+        for (let b of boxes) {
+            if (typeof (b["content"]) === 'undefined') continue;
+
+            if (typeof (boxColors["" + b["content"]]) === 'undefined') {
+                context2D.fillStyle = "rgb(0, 200, 200)";
+            }
+            else {
+                context2D.fillStyle = boxColors["" + b["content"]];
+            }
+
+            //context2D.fillRect(b.x + 1, b.y + 1, b.w - 1, b.h - 1);
+            context2D.fillRect(b.x - b.w / 2 + 1, b.y - b.h / 2 + 1, b.w - 1, b.h - 1);
+
+
+            context2D.beginPath();
+            context2D.lineWidth = "1";
+            context2D.strokeStyle = "black";
+            context2D.rect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
+            context2D.stroke();
+
+            /*
+            if (b.content != 0) {
+                context2D.font = "18px 'Times'";
+                context2D.strokeStyle = "rgb(255,255,255)";
+                context2D.lineWidth = 1;
+                //context2D.strokeText(b.tag, b.x + 10, b.y + 20);
+                context2D.strokeText(b.content, b.x, b.y + BoxHeight());
+            }
+            */
+        }
+
+    }
+
+    function drawThrough() {
+        for (let i = 0; i < through.length; i++) {
+            for (let j = 0; j < through[i].length; j++) {
+                if (floor[i][j] != 0) {
+                    let colorVal = Math.floor(255 * (1.0 - through[i][j] / throughMax));
+                    context2D.fillStyle = "rgb(255," + colorVal + "," + colorVal + ")";
+                    context2D.fillRect(j * BoxWidth(), i * BoxHeight(), BoxWidth(), BoxHeight());
+                }
+            }
+        }
+    }
+
+    function render(aID, aPs) {
+
+        if (mps.size < 1) return;
+
+        context2D.beginPath();
+        context2D.fillStyle = "rgba(" + idColor(aID) + ", 0.2) ";
+        context2D.arc(aPs[0].x, aPs[0].y, Math.round(50 * Math.sin(((pCount % 60) / 60) * 3.14159)) + 20, 0, 2 * Math.PI, true);
+        context2D.fill();
+
+        context2D.beginPath();
+        context2D.lineWidth = 3;
+        context2D.strokeStyle = "rgba(" + idColor(aID) + ",  0.2) ";
+        context2D.moveTo(aPs[0].x, aPs[0].y);
+        for (let i = 1; i < aPs.length; i++) {
+            context2D.lineTo(aPs[i].x, aPs[i].y);
+        }
+        context2D.stroke();
+
+        for (let i = 0; i < aPs.length; i++) {
+            context2D.beginPath();
+            context2D.fillStyle = "rgba(" + idColor(aID) + ", " + (aPs.length - i) / aPs.length * 0.5 + ")";
+            context2D.arc(aPs[i].x, aPs[i].y, 3, 0, 2 * Math.PI, true);
+            context2D.fill();
+        }
+
+        context2D.font = "18px 'Times'";
+        //context2D.strokeStyle = "rgb(" + idColor(aID) + ")";
+        context2D.strokeStyle = "rgb(255,255,255)";
+        context2D.lineWidth = 1;
+        context2D.strokeText("id=" + aID, aPs[0].x, aPs[0].y + 20);
+    }
+
+    function renderAgent(agent) {
+
+        path = agent.path;
+        if (path.length < 1) return;
+
+        context2D.beginPath();
+        context2D.fillStyle = "rgba(0,0,0, 0.9) ";
+        context2D.arc(path[0].x, path[0].y, 1.5 * BoxWidth(), 0, 2 * Math.PI, true);
+        context2D.fill();
+
+
+        context2D.beginPath();
+        context2D.lineWidth = 3;
+        context2D.strokeStyle = "rgba(0,0,0,  0.9) ";
+        context2D.moveTo(path[0].x, path[0].y);
+        for (let i = 1; i < path.length; i++) {
+            context2D.lineTo(path[i].x, path[i].y);
+        }
+        context2D.stroke();
+
+        for (let i = 0; i < path.length; i++) {
+            context2D.beginPath();
+            context2D.fillStyle = "rgba(0,0,0, " + (path.length - i) / path.length * 0.5 + ")";
+            context2D.arc(path[i].x, path[i].y, 3, 0, 2 * Math.PI, true);
+            context2D.fill();
+        }
+        if (agent.path.length > 1) {
+            context2D.beginPath();
+            context2D.lineWidth = 3;
+            context2D.strokeStyle = "rgba(0,255,0,  1) ";
+            context2D.moveTo(agent.goal.x, agent.goal.y);
+            context2D.lineTo(agent.path[0].x, agent.path[0].y);
+            context2D.stroke();
+        }
+        if (agent.pred.length > 1) {
+            context2D.beginPath();
+            context2D.lineWidth = 1;
+            context2D.strokeStyle = "rgba(0,0,255,  1) ";
+            context2D.moveTo(agent.pred[0].x, agent.pred[0].y);
+            context2D.lineTo(agent.goal.x, agent.goal.y);
+            context2D.stroke();
+        }
+
+        if (agent.pred.length > 1) {
+            for (let p of agent.pred) {
+                context2D.beginPath();
+                context2D.lineWidth = 0.5;
+                context2D.strokeStyle = "rgba(255,0,0,  1) ";
+                //context2D.moveTo(agent.pred[0].x, agent.pred[0].y);
+                //context2D.moveTo(agent.goal.x, agent.goal.y);
+                context2D.moveTo(p.x, p.y);
+                let fromP = p.from;
+                while (true) {
+                    if (!fromP.from) break;
+                    context2D.lineTo(fromP.x, fromP.y);
+                    fromP = fromP.from;
+                }
+                context2D.stroke();
+            }
+        }
+
+        context2D.font = "18px 'Times'";
+        //context2D.strokeStyle = "rgb(" + idColor(aID) + ")";
+        context2D.strokeStyle = "rgb(255,255,255)";
+        context2D.lineWidth = 1;
+        context2D.strokeText("agent", path[0].x, path[0].y + 20);
+    }
+
+    function onBox(box, x, y) {
+        return (box.x - box.w / 2 <= x) && (x <= box.x + box.w / 2) && (box.y - box.h / 2 <= y) && (y <= box.y + box.h / 2);
+    }
+
+    function onBoxes(x, y) {
+        for (let b of boxes) {
+            if (onBox(b, x, y)) {
+                currentBox = b;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function dist2(f, t) {
+        return Math.sqrt(Math.pow(f.x - t.x, 2) + Math.pow(f.y - t.y, 2));
+    }
+
+    function nearGoal(goal, current) {
+        let dist = 100000000;
+        let x = 0, y = 0;
+        for (let b of boxes) {
+            if (b["content"] == goal) {
+                let tDist = dist2(b, current);
+                if (tDist < dist) {
+                    dist = tDist;
+                    x = b.x;
+                    y = b.y;
+                }
+            }
+        }
+        return { x: x, y: y, dist: dist };
+    }
+
+    function setNewGoal(agent) {
+        if (agent.todo.length < 1) {
+            console.log("Finish");
+            return false;
+        }
+
+        let g = agent.todo[0];
+        agent.todo.shift();
+        agent.todo.push(g);
+        agent.done.push(g);
+
+        let goal = nearGoal(g, agent.path[0]);
+        agent.goal.x = goal.x;
+        agent.goal.y = goal.y;
+
+        agent.seekDepth = dtn + 1;
+        agent.dist = dist2(agent.path[0], goal);
+        agent.reached = false;
+
+        return true;
+    }
+
+    function swapMinPTop(ps) {
+        function ev(p) {
+            return p.dist + p.past;
+        }
+        let minD = ev(ps[0]);
+        let minI = 0;
+        for (let i = 1; i < ps.length; i++) {
+            if (ev(ps[i]) < minD) {
+                minD = ev(ps[i]);
+                minI = i;
+            }
+        }
+        let tmp = ps[0];
+        ps[0] = ps[minI];
+        ps[minI] = tmp;
+
+        return minI;
+    }
+
+    function nextGo(agent) {
+        if (dist2(agent.goal, agent.path[0]) < 3 * Math.max(BoxHeight(), BoxWidth())) {
+            console.log("reach", agent.done[agent.done.length - 1]);
+            if (!setNewGoal(agent)) return;
+        }
+
+        if (dist2(agent.goal, agent.path[0]) < agent.dist) {
+            agent.dist = dist2(agent.goal, agent.path[0]);
+            agent.seekDepth = Math.floor(agent.seekDepth / dtn);
+            if (agent.seekDepth < dtn) agent.seekDepth = dtn + 1;
+        }
+
+        let current = { x: agent.path[0].x, y: agent.path[0].y, dist: dist2(agent.goal, agent.path[0]), from: false, past: 0 };
+
+        let pathPred = [current];
+        let depth = 0;
+        let trash = [agent.path[0]];
+
+        while (true) {
+            depth++;
+            if (pathPred.length < 1) break;
+
+            swapMinPTop(pathPred);
+
+            if (depth > agent.seekDepth - 1) break;
+
+            let p = pathPred.shift();
+            trash.push(p);
+
+            if (p.dist < 3 * Math.min(BoxWidth(), BoxHeight())) {
+                pathPred.unshift(p);
+                agent.reached = true;
+                break;
+            }
+            else {
+                agent.reached = false;
+            }
+
+            if (p.dist > agent.dist) {
+                if (!agent.reached) agent.seekDepth += 1;
+                //console.log("seekDepth=", agent.seekDepth);
+            }
+
+            for (dt of dtList) {
+                let newx = p.x + dt.x;
+                let newy = p.y + dt.y;
+
+                if (onBoxes(newx, newy)) {
+                    continue;
+                }
+
+                let existSame = false;
+                for (let tp of pathPred) {
+                    if (dist2(tp, { x: newx, y: newy }) < 1) {
+                        existSame = true;
+                        break;
+                    }
+                }
+                if (existSame) continue;
+
+                for (let tp of trash) {
+                    if (dist2(tp, { x: newx, y: newy }) < 1) {
+                        existSame = true;
+                        break;
+                    }
+                }
+                if (existSame) continue;
+
+                pathPred.push({ x: newx, y: newy, dist: dist2({ x: newx, y: newy }, agent.goal), from: p, past: p.past + dist2(p, { x: newx, y: newy }) });
+            }
+        }
+
+        if (pathPred.length < 1) {
+            console.log("noway");
+            return;
+        }
+
+        let minP = pathPred[0];
+        let path = [minP];
+        while (true) {
+            let p = minP.from;
+            path.unshift(p);
+            if (!p.from) {
+                break;
+            }
+            minP = p;
+        }
+        agent.pred = pathPred;
+
+
+        if (agent.reached) {
+            for (let i = 0; i < path.length; i++) {
+                que(agent.path, { x: path[i].x, y: path[i].y });
+            }
+        }
+        else {
+            que(agent.path, { x: minP.x, y: minP.y });
+        }
+    }
+
+
+    function update() {
+        if (!renderMode) {
+            window.requestAnimationFrame(update);
+            return;
+        }
+
+        for (let i = 0; i < SEQ_SIZE; i++) {
+            let kp = nextSampleData();
+            let v;
+            if (kp.tag) {
+                v = { x: kp.x, y: kp.y, tag: kp.tag };
+            }
+            else {
+                v = { x: kp.x, y: kp.y };
+            }
+            addP(mps, kp.cartID, v);
+
+            updateThrough(kp.x, kp.y);
+        }
+        pCount++;
+
+
+        canvasClear();
+
+        drawThrough();
+
+        drawBoxes();
+
+
+
+        let keys = mps.keys();
+        for (k of keys) {
+            render(k, mps.get(k));
+        }
+
+
+        nextGo(agent0);
+        renderAgent(agent0);
+
+        window.requestAnimationFrame(update);
+    }
+
+    function x2j(x) {
+        return Math.floor(x / BoxWidth());
+    }
+    function y2i(y) {
+        return Math.floor(y / BoxHeight());
+    }
+    function j2x(j) {
+        return BoxWidth() * j + BoxWidth() / 2;
+    }
+    function i2y(i) {
+        return BoxHeight() * i + BoxHeight() / 2;
+    }
+
+    function updateThrough(x, y) {
+        let i = y2i(y);
+        let j = x2j(x);
+        through[i][j]++;
+
+        if (through[i][j] > throughMax) throughMax = through[i][j];
+    }
+
+    let mousePreX;
+    let mousePreY;
+
+    function switchRenderMode(e) {
+        if (renderMode) {
+            renderMode = false;
+
+            console.log(rawData);
+        }
+        else {
+            renderMode = true;
+        }
+
+        mousePreX = e.clientX;
+        mousePreY = e.clientY;
+
+        console.log("ONONONO");
+        if (!onBoxes(e.clientX, e.clientY)) {
+            currentBox = undefined;
+        }
+    }
+
+
+    function onMouseMove(e) {
+        if (renderMode) return;
+        if (currentBox == undefined) return;
+        if (currentBox.content == 0) return;
+
+        let dx = e.clientX - mousePreX;
+        let dy = e.clientY - mousePreY;
+
+        currentBox.x += dx;
+        currentBox.y += dy;
+
+        mousePreX = e.clientX;
+        mousePreY = e.clientY;
+
+        drawBoxes();
+        console.log(e);
+    }
+
+    function setBG() {
+        let canvasBG = document.getElementById("canvasBG");
+        canvasBG.width = GlobalWidth();
+        canvasBG.height = GlobalHeight();
+        contextBG = canvasBG.getContext("2d");
+        //contextBG.globalCompositeOperation = "screen";
+    }
+
+    function addInitP() {
+        let x = 0, y = 0;
+        find_loop:
+        for (let i = floorData.m - 1; i >= 0; i--) {
+            //for (let j = floorData.n - 1; j >= 0; j--) {
+            for (let j = 30; j < floorData.n; j++) {
+                if (withoutContents(floor[i][j])) {
+                    x = j * BoxWidth() + BoxWidth() / 2;
+                    y = i * BoxHeight() + BoxHeight() / 2;
+                    break find_loop;
+                }
+            }
+        }
+
+        for (let id = 0; id < SEQ_SIZE; id++) {
+            addP(mps, id, { x: x, y: y });
+        }
+
+        que(agent0.path, { x: x, y: y });
+
+        setNewGoal(agent0);
+    }
+
+    function init() {
+        pCount = 1;
+        renderMode = true;
+        mps = new Map();
+        rawData = [];
+
+        canvas2D = document.getElementById("canvas2d");
+        canvas2D.width = GlobalWidth();
+        canvas2D.height = GlobalHeight();
+        context2D = canvas2D.getContext("2d");
+        //context2D.globalCompositeOperation = "screen";
+        //context2D.globalCompositeOperation = "lighter";
+        //context2D.globalCompositeOperation = "source-over";
+
+        canvasClear();
+
+        boxes = [];
+
+        for (let i = 0; i < floor.length; i++) {
+            for (let j = 0; j < floor[i].length; j++) {
+                if (withoutContents(floor[i][j])) continue;
+                boxes.push({ x: BoxWidth() * j + BoxWidth() / 2, y: BoxHeight() * i + BoxHeight() / 2, w: BoxWidth(), h: BoxHeight(), content: floor[i][j], tag: floor[i][j] + "(" + i + "," + j + ")" })
+            }
+        }
+
+        through = [];
+        throughMax = 0;
+
+        for (let i = 0; i < floor.length; i++) {
+            let row = [];
+            for (let j = 0; j < floor[i].length; j++) {
+                row.push(0);
+            }
+            through.push(row);
+        }
+
+        addInitP();
+        window.requestAnimationFrame(update);
+    }
+
+    window.onload = init;
+    window.onmousedown = switchRenderMode;
+    window.onmousemove = onMouseMove;
+
+</script>
+
+<!-- <body style="background-image: url(20190326testbg.png); background-size: cover;"> -->
+
+<body>
+
+    <!--<canvas id="canvas2d" style="position:fixed; top:0px; left:0px; background-color:rgba(0,0,0,0);"></canvas>-->
+    <canvas id="canvas2d"></canvas>
+
+</body>
+
+</html>
