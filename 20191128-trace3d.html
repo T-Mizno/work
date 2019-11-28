@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+    <title>Example</title>
+    <script src="https://threejs.org/build/three.min.js"></script>
+    <script src="https://threejs.org/examples/js/controls/FirstPersonControls.js"></script>
+
+    <script src="map.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Div which will hold the Output -->
+    <div id="WebGL-output">
+    </div>
+
+    <!-- Javascript code that runs our Three.js examples -->
+    <script type="text/javascript">
+
+        let GRID_SIZE_Z = floorData["m"];
+        let GRID_SIZE_X = floorData["n"];
+        console.log(GRID_SIZE_Z, GRID_SIZE_X);
+
+        const boxColors = {
+            0: { r: 171, g: 223, b: 234 },
+            1: { r: 248, g: 168, b: 153 },
+            2: { r: 233, g: 51, b: 56 },
+            3: { r: 192, g: 191, b: 192 },
+            4: { r: 101, g: 103, b: 173 },
+            5: { r: 149, g: 149, b: 201 },
+            6: { r: 0, g: 0, b: 255 },
+            7: { r: 167, g: 211, b: 139 },
+            8: { r: 249, g: 243, b: 154 },
+            9: { r: 195, g: 134, b: 73 },
+            10: { r: 0, g: 0, b: 0 },
+            11: { r: 255, g: 255, b: 255 }//上に何もない床
+        };
+
+        function contentNothing() {
+            return 11;
+        }
+        function contentCannotMove() {
+            return 10;
+        }
+
+        function newMatrix(m, n) {
+            let a = [];
+            for (let i = 0; i < m; i++) {
+                a[i] = [];
+                for (let j = 0; j < n; j++) {
+                    a[i][j] = 0;
+                }
+            }
+            return a;
+        }
+
+        let blockMatrix = newMatrix(GRID_SIZE_Z, GRID_SIZE_X);
+        let heights = newMatrix(GRID_SIZE_Z, GRID_SIZE_X);
+
+        for (let i = 0; i < heights.length; i++)for (let j = 0; j < heights[i].length; j++)heights[i][j] = 0;
+
+        for (let i = 1; i < floor.length - 1; i++) {
+            for (let j = 1; j < floor[0].length - 1; j++) {
+                let existsNothing = false;
+                for (let ii = i - 1; ii <= i + 1; ii++) {
+                    for (let jj = j - 1; jj <= j + 1; jj++) {
+                        existsNothing = existsNothing || (floor[ii][jj] == contentNothing());
+                    }
+                }
+                if (existsNothing) heights[i][j] = 1;
+                else heights[i][j] = 5;
+                if (floor[i][j] == contentNothing()) heights[i][j] = 0;
+            }
+        }
+
+        for (let i = 1; i < floor.length - 1; i++) {
+            for (let j = 1; j < floor[0].length - 1; j++) {
+                if (heights[i][j] == 5) continue;
+                if (floor[i][j] == contentNothing()) continue;
+                let existsHigher = false;
+                for (let a = i - 1; a <= i + 1; a++) {
+                    for (let b = j - 1; b <= j + 1; b++) {
+                        existsHigher = existsHigher || (heights[a][b] > 3);
+                    }
+                }
+                if (existsHigher) heights[i][j] = 4;
+            }
+
+        }
+        for (let i = 0; i < floor.length; i++)for (let j = 0; j < floor[i].length; j++) {
+            if (floor[i][j] == contentNothing()) heights[i][j] = 1;
+            if (floor[i][j] == contentCannotMove()) heights[i][j] = 20;
+            if (heights[i][j] == 1) heights[i][j] = 6;
+            if (heights[i][j] == 4) heights[i][j] = 3;
+            if (heights[i][j] == 5) heights[i][j] = 5;
+        }
+
+
+        function init() {
+
+            var clock = new THREE.Clock();
+
+            var webGLRenderer = new THREE.WebGLRenderer();
+            webGLRenderer.setClearColor(new THREE.Color(0x000));
+            webGLRenderer.setSize(window.innerWidth, window.innerHeight);
+            webGLRenderer.shadowMap.enabled = true;
+            document.getElementById("WebGL-output").appendChild(webGLRenderer.domElement);
+
+            var scene = new THREE.Scene();
+
+            let camera = new THREE.PerspectiveCamera();
+
+            camera.position.x = (GRID_SIZE_X - 0) / 2;
+            camera.position.y = 20;
+            camera.position.z = (GRID_SIZE_Z - 0) * 2 / 3;
+
+            camera.lookAt(new THREE.Vector3((GRID_SIZE_X - 0) / 2, 0, (GRID_SIZE_Z - 0) / 2));
+
+            controls = new THREE.FirstPersonControls(camera, webGLRenderer.domElement);
+            controls.lookSpeed = 0.05;
+            controls.movementSpeed = 3;
+            controls.rollSpeed = Math.PI / 2;
+            controls.domElement = webGLRenderer.domElement;
+            controls.noFly = true;
+            controls.lookVertical = true;
+            controls.constrainVertical = true;
+            controls.verticalMin = 1;
+            controls.verticalMax = 2;
+            controls.lon = 100;
+            controls.lat = 0;
+            controls.autoForward = false;
+            controls.dragToLook = true;
+
+
+            var ambientLight = new THREE.AmbientLight(0x383838);
+            scene.add(ambientLight);
+
+            // add spotlight for the shadows
+            var spotLight = new THREE.SpotLight(0xffffff);
+            spotLight.position.set(300, 300, 300);
+            spotLight.intensity = 1;
+            scene.add(spotLight);
+
+            render();
+
+            function addUnitCube(i, j, k, c, h) {
+
+                var cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
+                var cubeMaterial = new THREE.MeshLambertMaterial({ color: c, transparent: true, opacity: 0.5 });
+                var cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+                //cube.castShadow = true;
+
+                // position the cube
+                cube.position.x = k;
+                cube.position.y = j;
+                cube.position.z = i;
+
+                cube.scale.y = 1 + h;
+
+                //cube.defColor = 0x999944;
+                cube.material.needsUpdate = true;
+                cube.needsUpdate = true;
+                cube.geometry.needsUpdate = true;
+                // add the cube to the scene
+                scene.add(cube);
+                return cube;
+            }
+
+            function addFloor() {
+                var cubeGeometry = new THREE.BoxGeometry(GRID_SIZE_X, 1, GRID_SIZE_Z);
+                var cubeMaterial = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 1.0 });
+                var cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+
+                cube.position.x = GRID_SIZE_X / 2;
+                cube.position.y = 0;
+                cube.position.z = GRID_SIZE_Z / 2
+
+                cube.scale.y = 1;
+
+                scene.add(cube);
+                return cube;
+            }
+
+            addFloor();
+            for (let i = 0; i < floor.length; i++) {
+                for (let k = 0; k < floor[i].length; k++) {
+                    if (floor[i][k] == contentNothing()) continue;
+                    let r = boxColors[floor[i][k]].r;
+                    let g = boxColors[floor[i][k]].g;
+                    let b = boxColors[floor[i][k]].b;
+
+                    let h = 5;
+                    if (floor[i][k] == contentCannotMove()) h = 10;
+                    blockMatrix[i][k] = addUnitCube(i, 0, k, new THREE.Color(r / 256, g / 256, b / 256), heights[i][k]);
+                }
+            }
+
+
+            function render() {
+                var delta = clock.getDelta();
+
+                requestAnimationFrame(render);
+                if (camera.position.y < 3) camera.position.y = 3;
+
+                controls.update(delta);
+                webGLRenderer.clear();
+                // render using requestAnimationFrame
+
+                webGLRenderer.render(scene, camera)
+            }
+
+
+            function initStats() {
+
+                var stats = new Stats();
+                stats.setMode(0); // 0: fps, 1: ms
+
+                // Align top-left
+                stats.domElement.style.position = 'absolute';
+                stats.domElement.style.left = '0px';
+                stats.domElement.style.top = '0px';
+
+                document.getElementById("Stats-output").appendChild(stats.domElement);
+
+                return stats;
+            }
+
+        }
+        window.onload = init;
+
+    </script>
+</body>
+
+</html>
