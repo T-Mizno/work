@@ -1501,6 +1501,7 @@
         let moveX;    // スワイプ中の x座標
         let moveY;    // スワイプ中の y座標
         let dist = 30;    // スワイプを感知する最低距離（ピクセル単位）
+        let longDist = 0.9 * GlobalWidth();
 
         // タッチ開始時： xy座標を取得
         t.addEventListener("touchstart", function (e) {
@@ -1518,14 +1519,30 @@
 
         // タッチ終了時： スワイプした距離から左右どちらにスワイプしたかを判定する/距離が短い場合何もしない
         t.addEventListener("touchend", function (e) {
+
+            if (startX > moveX && startX > moveX + longDist) {        // 右から左に長いスワイプ
+                console.log("<-- <-- <--");
+                addMessage("図面変更 160-1 (7/16)");
+                resetFloorData(mapDataStr1);
+                init();
+                return;
+            }
+            else if (startX < moveX && startX + longDist < moveX) {    // 左から右に長いスワイプ
+                console.log("--> --> -->");
+                addMessage("図面変更 160-2 (10/24)");
+                resetFloorData(mapDataStr2);
+                init();
+                return;
+            }
+
             if (startX > moveX && startX > moveX + dist) {        // 右から左にスワイプ
-                // 右から左にスワイプした時の処理
+                console.log("<-");
                 unShiftWalkData();
                 addWalkDataMessage(walkDataNum);
                 return;
             }
             else if (startX < moveX && startX + dist < moveX) {    // 左から右にスワイプ
-                // 左から右にスワイプした時の処理
+                console.log("<-");
                 shiftWalkData();
                 addWalkDataMessage(walkDataNum);
                 return;
