@@ -1615,7 +1615,7 @@
     // box をつかんではなす
     function isBoxInNear(aBox, aX, aY){
         let rangeW = BoxWidth()*1;
-        let rangeH = BoxHeight()*2;
+        let rangeH = BoxHeight()*1;
         return Math.abs(aBox.x-aX) < rangeW && Math.abs(aBox.y-aY)<rangeH;
     }
     function pickupBoxes(aX, aY){
@@ -1638,7 +1638,54 @@
         }
         drawBoxes();
     }
+    function isBoxOnContentBox(aB, aX, aY){
+        for(let b of boxes){
+            if(b==aB)continue;
+            if(b["content"]==contentCannotMove())continue;
+            if(
+                /*
+                (( (b.x-b.w/2) < (aB.x-aB.w/2) && (aB.x-aB.w/2)<(b.x+b.w/2) ) || ( (b.x-b.w/2) < (aB.x+aB.w/2) && (aB.x+aB.w/2)<(b.x+b.w/2) ))
+               &&
+                (( (b.y-b.h/2) < (aB.y-aB.h/2) && (aB.y-aB.h/2)<(b.y+b.h/2) ) || ( (b.y-b.h/2) < (aB.y+aB.h/2) && (aB.y+aB.h/2)<(b.y+b.h/2) ))
+                */
+                (( (b.x-b.w/2) < (aX-aB.w/2) && (aX-aB.w/2)<(b.x+b.w/2) ) || ( (b.x-b.w/2) < (aX+aB.w/2) && (aX+aB.w/2)<(b.x+b.w/2) ))
+                &&
+                (( (b.y-b.h/2) < (aY-aB.h/2) && (aY-aB.h/2)<(b.y+b.h/2) ) || ( (b.y-b.h/2) < (aY+aB.h/2) && (aY+aB.h/2)<(b.y+b.h/2) ))
+             ) return true;
+        }
+        return false;
+    }
+    function canPut(aB, aX, aY){
+       return !isBoxOnContentBox(aB, aX, aY);
+    }
+    function putBoxNearBlank(aB, aX, aY){
+        for(let r=1; r<100; r++){
+            let R = r;//r*BoxWidth()/2;
+            for(let th=0; th<6.283184; th+=0.785398){
+                let newX = aX+R*Math.cos(th);
+                let newY = aY+R*Math.sin(th);
+                //console.log("search:", newX, newY);
+                if(canPut(aB, newX, newY)){
+                    //console.log("X:", aB.x, newX);
+                    //console.log("Y:", aB.y, newY);
+                    aB.x = newX;
+                    aB.y = newY;
+                    return;
+                }
+            }
+        }
+        console.log("NOT FOUND");
+    }
     function releaseBoxes(){
+        for(let b of GraspedBoxes){
+            if(canPut(b, b.x, b.y)){
+                console.log("OK");
+            }
+            else {
+                console.log("NG");
+                putBoxNearBlank(b, b.x, b.y);
+            }
+        }
         GraspedBoxes.splice(0);
     }
 
