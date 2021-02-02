@@ -1616,8 +1616,8 @@
 
     // box をつかんではなす
     function isBoxInNear(aBox, aX, aY){
-        let rangeW = BoxWidth()*1;
-        let rangeH = BoxHeight()*1;
+        let rangeW = BoxWidth()*1.5;
+        let rangeH = BoxHeight()*1.5;
         return Math.abs(aBox.x-aX) < rangeW && Math.abs(aBox.y-aY)<rangeH;
     }
     function pickupBoxes(aX, aY){
