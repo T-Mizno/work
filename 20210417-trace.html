@@ -320,13 +320,11 @@
     }
 
     function GlobalWidth() {
-        return 1113;
-        //return 1000;
+        return 1113;  // for iPad
         //return window.innerWidth;
     }
     function GlobalHeight() {
-        return 765;
-        //return 600;
+        return 765;  // for iPad
         //return window.innerHeight;
     }
 
@@ -391,7 +389,6 @@
                 let predict = truckToNext(key, mps.get(key));
                 modelBiasx = predict.x;
                 modelBiasy = predict.y;
-                //console.log(modelBiasx, modelBiasy);
             }
             else {
                 anx = prex;
@@ -589,13 +586,12 @@
             for (let alpha = 1; alpha >= 0; alpha = alpha - 0.01) {
                 let newx3 = alpha * b.x + (1 - alpha) * newx;
                 let newy3 = alpha * b.y + (1 - alpha) * newy;
-                //console.log(alpha, b.x, b.y, newx, newy, newx3, newy3);
+
                 if (y2i(b.y) == y2i(newy3) && x2j(b.x) == x2j(newx3)) continue;
                 if (!onAdjustArea(newx3, newy3)) break;
                 if (floor[y2i(newy3)][x2j(newx3)] == contentCannotMove()) break;
                 if (floor[y2i(newy3)][x2j(newx3)] != contentNothing()) break;
-                //if (floor[y2i(newy3)][x2j(newx3)] != b.content) console.log("OOOOOKKKK", alpha);
-                //else console.log("*********", alpha);
+
                 newx2 = newx3;
                 newy2 = newy3;
             }
@@ -764,7 +760,6 @@
             }
         }
         */
-        //console.log(Object.keys(region));
     }
 
 
@@ -1033,12 +1028,11 @@
             for (let s = 0; s < wData.length; s++) {
                 let j = x2j(adX(wData[s][4]));
                 let i = y2i(adY(wData[s][5]));
-                //console.log(wData[s][4], i, j, s);
+
                 through[i][j]++;
                 if (through[i][j] > throughMax) throughMax = through[i][j];
             }
         }
-        //console.log(throughMax);
     }
 
     function clearThrough() {
@@ -1323,12 +1317,8 @@
 
 
     function drawSwipeSelectArea() {
-        //console.log("X", swipe.startX, swipe.endX);
-        //console.log("Y", swipe.startY, swipe.endY);
-
         context2D.fillStyle = "rgba(200, 0, 0, 0.5)";
         context2D.fillRect(Math.min(swipe.startX, swipe.endX), Math.min(swipe.startY, swipe.endY), Math.abs(swipe.startX - swipe.endX), Math.abs(swipe.startY - swipe.endY));
-
 
         for (let b of swipe.selectedBoxes) {
             context2D.beginPath();
@@ -1574,194 +1564,197 @@
             resetFloorData(mapDataStr2);
             init();
         }
-        //console.log(event.key, "pressed");
+
     }
 
-
-    function setSwipe() {
-        let t = document.getElementById("canvas2d");
-        let startX;        // タッチ開始 x座標
-        let startY;        // タッチ開始 y座標
-        let moveX;    // スワイプ中の x座標
-        let moveY;    // スワイプ中の y座標
-
-        // スワイプを感知する最低距離
-        let dist = 0.1 * GlobalWidth();
-        let longDist = 0.8 * GlobalWidth();
-        let longHightDist = 0.8 * GlobalHeight();
-
-        // タッチ開始時： xy座標を取得
-        t.addEventListener("touchstart", function (e) {
-            e.preventDefault();
-            startX = e.touches[0].pageX;
-            startY = e.touches[0].pageY;
-        });
-
-        // スワイプ中： xy座標を取得
-        t.addEventListener("touchmove", function (e) {
-            e.preventDefault();
-            moveX = e.changedTouches[0].pageX;
-            moveY = e.changedTouches[0].pageY;
-        });
-
-        // タッチ終了時： スワイプした距離から左右どちらにスワイプしたかを判定する/距離が短い場合何もしない
-        t.addEventListener("touchend", function (e) {
-
-            if (startX > moveX && startX > moveX + longDist) {        // 右から左に長いスワイプ
-                console.log("<-- <-- <--");
-                addMessage("図面変更 160-1 (7/16)");
-                resetFloorData(mapDataStr1);
-                init();
-                return;
-            }
-            else if (startX < moveX && startX + longDist < moveX) {    // 左から右に長いスワイプ
-                console.log("--> --> -->");
-                addMessage("図面変更 160-2 (10/24)");
-                resetFloorData(mapDataStr2);
-                init();
-                return;
-            }
-
-            if (startX > moveX && startX > moveX + dist) {        // 右から左にスワイプ
-                console.log("<-");
-                unShiftWalkData();
-                addWalkDataMessage(walkDataNum);
-                return;
-            }
-            else if (startX < moveX && startX + dist < moveX) {    // 左から右にスワイプ
-                console.log("<-");
-                shiftWalkData();
-                addWalkDataMessage(walkDataNum);
-                return;
-            }
-
-            if (startY > moveY && startY > moveY + longHightDist) {        // 下から上にスワイプ
-                console.log("↑↑↑");
-                return;
-            }
-            else if (startY < moveY && startY + longHightDist < moveY) {    // 上から下にスワイプ
-                console.log("↓↓↓");
-                if (onDataDrawMode()) { console.log("hai"); changeToRandomWalkMode(); return; }
-                if (onRandomWalkMode()) { changeToSeekMode(); return; }
-                //if (onSeekMode()) { changeToAdjustMode(); return; }
-                if (onSeekMode()) { changeToOnlyFloorMode(); return; }
-                //if (onAdjustMode()) { changeToOnlyFloorMode(); return; }
-                if (onOnlyFloorMode()) { changeToDataDrawMode(); return; }
-                return;
-            }
-        });
-    }
-
-    // box をつかんではなす
-    function isBoxInNear(aBox, aX, aY) {
-        let rangeW = BoxWidth() * 1.5;
-        let rangeH = BoxHeight() * 1.5;
-        return Math.abs(aBox.x - aX) < rangeW && Math.abs(aBox.y - aY) < rangeH;
-    }
-    function pickupBoxes(aX, aY) {
-        for (let b of boxes) {
-            if ((b.content != contentCannotMove()) && isBoxInNear(b, aX, aY)) {
-                GraspedBoxes.push(b);
-            }
-        }
-        drawBoxes();
-    }
-    function moveGraspedBoxes(aX, aY) {
-        if (GraspedBoxes.length < 1) return;
-        let preX = GraspedBoxes[0].x;
-        let preY = GraspedBoxes[0].y;
-        let moveX = aX - preX;
-        let moveY = aY - preY;
-        for (let b of GraspedBoxes) {
-            b.x += moveX;
-            b.y += moveY;
-        }
-        drawBoxes();
-    }
-    function isBoxOnContentBox(aB, aX, aY) {
-        for (let b of boxes) {
-            if (b == aB) continue;
-            if (b["content"] == contentCannotMove()) continue;
-            if (
-                /*
-                (( (b.x-b.w/2) < (aB.x-aB.w/2) && (aB.x-aB.w/2)<(b.x+b.w/2) ) || ( (b.x-b.w/2) < (aB.x+aB.w/2) && (aB.x+aB.w/2)<(b.x+b.w/2) ))
-               &&
-                (( (b.y-b.h/2) < (aB.y-aB.h/2) && (aB.y-aB.h/2)<(b.y+b.h/2) ) || ( (b.y-b.h/2) < (aB.y+aB.h/2) && (aB.y+aB.h/2)<(b.y+b.h/2) ))
-                */
-                (((b.x - b.w / 2) < (aX - aB.w / 2) && (aX - aB.w / 2) < (b.x + b.w / 2)) || ((b.x - b.w / 2) < (aX + aB.w / 2) && (aX + aB.w / 2) < (b.x + b.w / 2)))
-                &&
-                (((b.y - b.h / 2) < (aY - aB.h / 2) && (aY - aB.h / 2) < (b.y + b.h / 2)) || ((b.y - b.h / 2) < (aY + aB.h / 2) && (aY + aB.h / 2) < (b.y + b.h / 2)))
-            ) return true;
-        }
-        return false;
-    }
-    function canPut(aB, aX, aY) {
-        return !isBoxOnContentBox(aB, aX, aY);
-    }
-    function putBoxNearBlank(aB, aX, aY) {
-        for (let r = 1; r < 100; r++) {
-            let R = r;//r*BoxWidth()/2;
-            for (let th = 0; th < 6.283184; th += 0.785398) {
-                let newX = aX + R * Math.cos(th);
-                let newY = aY + R * Math.sin(th);
-                //console.log("search:", newX, newY);
-                if (canPut(aB, newX, newY)) {
-                    //console.log("X:", aB.x, newX);
-                    //console.log("Y:", aB.y, newY);
-                    aB.x = newX;
-                    aB.y = newY;
+    /*
+        function setSwipe() {
+            let t = document.getElementById("canvas2d");
+            let startX;        // タッチ開始 x座標
+            let startY;        // タッチ開始 y座標
+            let moveX;    // スワイプ中の x座標
+            let moveY;    // スワイプ中の y座標
+    
+            // スワイプを感知する最低距離
+            let dist = 0.1 * GlobalWidth();
+            let longDist = 0.8 * GlobalWidth();
+            let longHightDist = 0.8 * GlobalHeight();
+    
+            // タッチ開始時： xy座標を取得
+            t.addEventListener("touchstart", function (e) {
+                e.preventDefault();
+                startX = e.touches[0].pageX;
+                startY = e.touches[0].pageY;
+            });
+    
+            // スワイプ中： xy座標を取得
+            t.addEventListener("touchmove", function (e) {
+                e.preventDefault();
+                moveX = e.changedTouches[0].pageX;
+                moveY = e.changedTouches[0].pageY;
+            });
+    
+            // タッチ終了時： スワイプした距離から左右どちらにスワイプしたかを判定する/距離が短い場合何もしない
+            t.addEventListener("touchend", function (e) {
+    
+                if (startX > moveX && startX > moveX + longDist) {        // 右から左に長いスワイプ
+                    console.log("<-- <-- <--");
+                    addMessage("図面変更 160-1 (7/16)");
+                    resetFloorData(mapDataStr1);
+                    init();
                     return;
                 }
-            }
+                else if (startX < moveX && startX + longDist < moveX) {    // 左から右に長いスワイプ
+                    console.log("--> --> -->");
+                    addMessage("図面変更 160-2 (10/24)");
+                    resetFloorData(mapDataStr2);
+                    init();
+                    return;
+                }
+    
+                if (startX > moveX && startX > moveX + dist) {        // 右から左にスワイプ
+                    console.log("<-");
+                    unShiftWalkData();
+                    addWalkDataMessage(walkDataNum);
+                    return;
+                }
+                else if (startX < moveX && startX + dist < moveX) {    // 左から右にスワイプ
+                    console.log("<-");
+                    shiftWalkData();
+                    addWalkDataMessage(walkDataNum);
+                    return;
+                }
+    
+                if (startY > moveY && startY > moveY + longHightDist) {        // 下から上にスワイプ
+                    console.log("↑↑↑");
+                    return;
+                }
+                else if (startY < moveY && startY + longHightDist < moveY) {    // 上から下にスワイプ
+                    console.log("↓↓↓");
+                    if (onDataDrawMode()) { console.log("hai"); changeToRandomWalkMode(); return; }
+                    if (onRandomWalkMode()) { changeToSeekMode(); return; }
+                    //if (onSeekMode()) { changeToAdjustMode(); return; }
+                    if (onSeekMode()) { changeToOnlyFloorMode(); return; }
+                    //if (onAdjustMode()) { changeToOnlyFloorMode(); return; }
+                    if (onOnlyFloorMode()) { changeToDataDrawMode(); return; }
+                    return;
+                }
+            });
         }
-        console.log("NOT FOUND");
-    }
-    function releaseBoxes() {
-        for (let b of GraspedBoxes) {
-            if (canPut(b, b.x, b.y)) {
-                console.log("OK");
-            }
-            else {
-                console.log("NG");
-                putBoxNearBlank(b, b.x, b.y);
-            }
+    */
+
+
+    /*
+        // box をつかんではなす
+        function isBoxInNear(aBox, aX, aY) {
+            let rangeW = BoxWidth() * 1.5;
+            let rangeH = BoxHeight() * 1.5;
+            return Math.abs(aBox.x - aX) < rangeW && Math.abs(aBox.y - aY) < rangeH;
         }
-        GraspedBoxes.splice(0);
-    }
-
-    function setSwipeGraspAndDrop() {
-        let t = document.getElementById("canvas2d");
-        let startX;        // タッチ開始 x座標
-        let startY;        // タッチ開始 y座標
-        let moveX;    // スワイプ中の x座標
-        let moveY;    // スワイプ中の y座標
-
-        // スワイプを感知する最低距離
-        let dist = 0.1 * GlobalWidth();
-        let longDist = 0.8 * GlobalWidth();
-        let longHightDist = 0.8 * GlobalHeight();
-
-        // タッチ開始時： xy座標を取得
-        t.addEventListener("touchstart", function (e) {
-            e.preventDefault();
-            startX = e.touches[0].pageX;
-            startY = e.touches[0].pageY;
-            pickupBoxes(e.touches[0].pageX, e.touches[0].pageY);
-        });
-
-        // スワイプ中： xy座標を取得
-        t.addEventListener("touchmove", function (e) {
-            e.preventDefault();
-            moveX = e.changedTouches[0].pageX;
-            moveY = e.changedTouches[0].pageY;
-            moveGraspedBoxes(e.changedTouches[0].pageX, e.changedTouches[0].pageY);
-        });
-
-        // タッチ終了時： スワイプした距離から左右どちらにスワイプしたかを判定する/距離が短い場合何もしない
-        t.addEventListener("touchend", function (e) {
-            releaseBoxes();
-        });
-    }
+        function pickupBoxes(aX, aY) {
+            for (let b of boxes) {
+                if ((b.content != contentCannotMove()) && isBoxInNear(b, aX, aY)) {
+                    GraspedBoxes.push(b);
+                }
+            }
+            drawBoxes();
+        }
+        function moveGraspedBoxes(aX, aY) {
+            if (GraspedBoxes.length < 1) return;
+            let preX = GraspedBoxes[0].x;
+            let preY = GraspedBoxes[0].y;
+            let moveX = aX - preX;
+            let moveY = aY - preY;
+            for (let b of GraspedBoxes) {
+                b.x += moveX;
+                b.y += moveY;
+            }
+            drawBoxes();
+        }
+        function isBoxOnContentBox(aB, aX, aY) {
+            for (let b of boxes) {
+                if (b == aB) continue;
+                if (b["content"] == contentCannotMove()) continue;
+                if (
+                    //(( (b.x-b.w/2) < (aB.x-aB.w/2) && (aB.x-aB.w/2)<(b.x+b.w/2) ) || ( (b.x-b.w/2) < (aB.x+aB.w/2) && (aB.x+aB.w/2)<(b.x+b.w/2) ))
+                    //&&
+                    //(( (b.y-b.h/2) < (aB.y-aB.h/2) && (aB.y-aB.h/2)<(b.y+b.h/2) ) || ( (b.y-b.h/2) < (aB.y+aB.h/2) && (aB.y+aB.h/2)<(b.y+b.h/2) ))
+                    (((b.x - b.w / 2) < (aX - aB.w / 2) && (aX - aB.w / 2) < (b.x + b.w / 2)) || ((b.x - b.w / 2) < (aX + aB.w / 2) && (aX + aB.w / 2) < (b.x + b.w / 2)))
+                    &&
+                    (((b.y - b.h / 2) < (aY - aB.h / 2) && (aY - aB.h / 2) < (b.y + b.h / 2)) || ((b.y - b.h / 2) < (aY + aB.h / 2) && (aY + aB.h / 2) < (b.y + b.h / 2)))
+                ) return true;
+            }
+            return false;
+        }
+        function canPut(aB, aX, aY) {
+            return !isBoxOnContentBox(aB, aX, aY);
+        }
+        function putBoxNearBlank(aB, aX, aY) {
+            for (let r = 1; r < 100; r++) {
+                let R = r;//r*BoxWidth()/2;
+                for (let th = 0; th < 6.283184; th += 0.785398) {
+                    let newX = aX + R * Math.cos(th);
+                    let newY = aY + R * Math.sin(th);
+                    //console.log("search:", newX, newY);
+                    if (canPut(aB, newX, newY)) {
+                        //console.log("X:", aB.x, newX);
+                        //console.log("Y:", aB.y, newY);
+                        aB.x = newX;
+                        aB.y = newY;
+                        return;
+                    }
+                }
+            }
+            console.log("NOT FOUND");
+        }
+        function releaseBoxes() {
+            for (let b of GraspedBoxes) {
+                if (canPut(b, b.x, b.y)) {
+                    console.log("OK");
+                }
+                else {
+                    console.log("NG");
+                    putBoxNearBlank(b, b.x, b.y);
+                }
+            }
+            GraspedBoxes.splice(0);
+        }
+    
+        // box を一つずつ動かす場合
+        function setSwipeGraspAndDrop() {
+            let t = document.getElementById("canvas2d");
+            let startX;        // タッチ開始 x座標
+            let startY;        // タッチ開始 y座標
+            let moveX;    // スワイプ中の x座標
+            let moveY;    // スワイプ中の y座標
+    
+            // スワイプを感知する最低距離
+            let dist = 0.1 * GlobalWidth();
+            let longDist = 0.8 * GlobalWidth();
+            let longHightDist = 0.8 * GlobalHeight();
+    
+            // タッチ開始時： xy座標を取得
+            t.addEventListener("touchstart", function (e) {
+                e.preventDefault();
+                startX = e.touches[0].pageX;
+                startY = e.touches[0].pageY;
+                pickupBoxes(e.touches[0].pageX, e.touches[0].pageY);
+            });
+    
+            // スワイプ中： xy座標を取得
+            t.addEventListener("touchmove", function (e) {
+                e.preventDefault();
+                moveX = e.changedTouches[0].pageX;
+                moveY = e.changedTouches[0].pageY;
+                moveGraspedBoxes(e.changedTouches[0].pageX, e.changedTouches[0].pageY);
+            });
+    
+            // タッチ終了時： スワイプした距離から左右どちらにスワイプしたかを判定する/距離が短い場合何もしない
+            t.addEventListener("touchend", function (e) {
+                releaseBoxes();
+            });
+        }
+    */
 
     let swipe = {
         selected: false,
@@ -1802,31 +1795,44 @@
         let preX;
         let preY;
 
+        let isCommandMode = false;
+        // コマンドモードでスワイプを感知する距離
+        let dist = 0.1 * GlobalWidth();
+        let longDist = 0.7 * GlobalWidth();
+        let longHightDist = 0.7 * GlobalHeight();
+
         // タッチ開始時： xy座標を取得
         t.addEventListener("touchstart", function (e) {
             e.preventDefault();
             startX = e.touches[0].pageX;
             startY = e.touches[0].pageY;
 
-            if (isInSwipeSelectArea(startX, startY)) { // 長方形の中をタッチ, これから範囲内のboxesを動かす
-                preX = startX;
-                preY = startY;
-
-                // 選択領域を0にするため。
-                swipe.startX = 0;
-                swipe.startY = 0;
-                swipe.endX = 0;
-                swipe.endY = 0;
-
-                if (swipe.selectedBoxes.length > 1) saveBoxesSnapshot(); // 動かす直前に boxes を全て記録
+            if (startY >= 0.8 * GlobalHeight()) {
+                isCommandMode = true;
+                console.log("command mode");
             }
-            else { // 長方形を描画し始める
-                swipe.selected = false;
-                swipe.selectedBoxes = [];
-                swipe.startX = startX;
-                swipe.startY = startY;
-                swipe.endX = startX;
-                swipe.endY = startY;
+            else {
+
+                if (isInSwipeSelectArea(startX, startY)) { // 長方形の中をタッチ, これから範囲内のboxesを動かす
+                    preX = startX;
+                    preY = startY;
+
+                    // 選択領域を0にするため。
+                    swipe.startX = 0;
+                    swipe.startY = 0;
+                    swipe.endX = 0;
+                    swipe.endY = 0;
+
+                    if (swipe.selectedBoxes.length > 1) saveBoxesSnapshot(); // 動かす直前に boxes を全て記録
+                }
+                else { // 長方形を描画し始める
+                    swipe.selected = false;
+                    swipe.selectedBoxes = [];
+                    swipe.startX = startX;
+                    swipe.startY = startY;
+                    swipe.endX = startX;
+                    swipe.endY = startY;
+                }
             }
         });
 
@@ -1836,30 +1842,51 @@
             moveX = e.changedTouches[0].pageX;
             moveY = e.changedTouches[0].pageY;
 
-            if (swipe.selected) { // 長方形を移動している最中
-                moveSwipeSelectedBoxes(moveX - preX, moveY - preY);
-                preX = moveX;
-                preY = moveY;
+            if (isCommandMode) {
+
             }
-            else { // 長方形を選択している最中
-                swipe.endX = moveX;
-                swipe.endY = moveY;
-                drawSwipeSelectArea();
+            else {
+                if (swipe.selected) { // 長方形を移動している最中
+                    moveSwipeSelectedBoxes(moveX - preX, moveY - preY);
+                    preX = moveX;
+                    preY = moveY;
+                }
+                else { // 長方形を選択している最中
+                    swipe.endX = moveX;
+                    swipe.endY = moveY;
+                    drawSwipeSelectArea();
+                }
+                //console.log("move", swipe.startX, swipe.startY, swipe.endX, swipe.endY);
             }
-            //console.log("move", swipe.startX, swipe.startY, swipe.endX, swipe.endY);
         });
 
         // タッチ終了時： スワイプした距離から左右どちらにスワイプしたかを判定する/距離が短い場合何もしない
         t.addEventListener("touchend", function (e) {
-            if (!swipe.selected) { // 長方形で選択して指を離した直後
-                swipe.selected = true;
-                collectSwipeSelectedBoxes();
+            if (isCommandMode) {
+                if (startX > moveX && startX > moveX + longDist) {        // 右から左に長いスワイプ
+                    console.log("<-- <-- <--");
+                    undoBoxesSnapshot();
+                }
+                else if (startX < moveX && startX + longDist < moveX) {    // 左から右に長いスワイプ
+                    console.log("--> --> -->");
+                }
+                if (startX > moveX && startX > moveX + dist) {        // 右から左にスワイプ
+                    console.log("<-");
+                }
+                else if (startX < moveX && startX + dist < moveX) {    // 左から右にスワイプ
+                    console.log("<-");
+                }
+                isCommandMode = false;
             }
-            else { // box をドラッグして指を離した直後
-                swipe.selected = false;
-                swipe.selectedBoxes = [];
-
-
+            else {
+                if (!swipe.selected) { // 長方形で選択して指を離した直後
+                    swipe.selected = true;
+                    collectSwipeSelectedBoxes();
+                }
+                else { // box をドラッグして指を離した直後
+                    swipe.selected = false;
+                    swipe.selectedBoxes = [];
+                }
             }
         });
     }
@@ -1914,19 +1941,11 @@
         }
 
         for (let id = 0; id < SEQ_SIZE; id++) {
-            //addP(mps, id, { x: x, y: y });
             addP(mps, id, { x: j2x(121), y: i2y(83) });
         }
 
         initAgents();
-        /*
-        for (let a of AGENTS) {
-            //que(a.path, { x: x, y: y });
-            que(a.path, { x: j2x(121), y: i2y(83) });
- 
-            setNewGoal(a);
-        }
-        */
+
         startPoint.x = x;
         startPoint.y = y;
 
