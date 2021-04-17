@@ -1,0 +1,2040 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>Sample</title>
+    <style>
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.0.0/dist/tf.js"></script>
+
+<script src="20200118-walk.js" defer></script>
+<script src="map.js"></script>
+<script src="map1.js"></script>
+<script src="map2.js"></script>
+
+<script>
+
+    let MODELS = new Array(3);
+
+    (async () => {
+        MODELS[0] = await tf.loadLayersModel('https://t-mizno.github.io/work/20201202-c1-model.json');
+        MODELS[1] = await tf.loadLayersModel('https://t-mizno.github.io/work/20201202-c2-model.json');
+        MODELS[2] = await tf.loadLayersModel('https://t-mizno.github.io/work/20201202-c3-model.json');
+    })();
+
+    let MODELS_BUFF = new Array(10);
+
+    const SEQ_SIZE = 5;//3;
+
+    const RGBs = ["255, 0, 0", "0, 255, 0", "0, 0, 255", "255, 255, 0", "255, 0, 255", "0, 255, 255"];
+
+    function idColor(key) {
+        return RGBs[key % RGBs.length];
+    }
+
+    let walkData = undefined;
+    let walkDataNum = 0;
+    let WALK_STEP = 0;
+
+    function shiftWalkData() {
+        walkDataNum = (walkDataNum + 1) % WALK_DATA.length;
+        walkData = WALK_DATA[walkDataNum].data;
+        WALK_STEP = 0;
+    }
+    function unShiftWalkData() {
+        walkDataNum = walkDataNum - 1;
+        if (walkDataNum < 0) walkDataNum = WALK_DATA.length - 1;
+        walkData = WALK_DATA[walkDataNum].data;
+        WALK_STEP = 0;
+    }
+
+    let canvas2D;
+    let context2D;
+    let renderMode;
+
+    let MOUSE_I = 0;
+    let MOUSE_J = 0;
+    let MOUSE_X = 0;
+    let MOUSE_Y = 0;
+
+    let CURRENT_MODE = 3;
+    let MODES = {
+        0: "シミュレートモード:　仮想のエージェントが商品を探索します。",
+        1: "探索モード:　最短距離での商品探索です。",
+        2: "配置調整モード: 配置を最適化します。",
+        3: "カートデータ描画モード",
+        4: "フロアのみを表示"
+    };
+    function onRandomWalkMode() {
+        return CURRENT_MODE == 0;
+    }
+    function onSeekMode() {
+        return CURRENT_MODE == 1;
+    }
+    function onAdjustMode() {
+        return CURRENT_MODE == 2;
+    }
+    function onDataDrawMode() {
+        return CURRENT_MODE == 3;
+    }
+    function onOnlyFloorMode() {
+        return CURRENT_MODE == 4;
+    }
+
+    function changeToRandomWalkMode() {
+        clearMessages();
+        clearThrough();
+        addMessage(MODES[0]);
+        CURRENT_MODE = 0;
+    }
+    function changeToSeekMode() {
+        clearThrough();
+        addMessage(MODES[1]);
+        CURRENT_MODE = 1;
+        for (let a of AGENTS) {
+            que(a.path, { x: startPoint.x, y: startPoint.y }); setNewGoal(a);
+        }
+        //STEP = 0;
+    }
+    function changeToAdjustMode() {
+        addMessage(MODES[2]);
+        CURRENT_MODE = 2;
+        ADJUST_STEP = 0;
+    }
+
+    function changeToDataDrawMode() {
+        clearThrough();
+        updateDataThrough();
+        addMessage(MODES[3]);
+        CURRENT_MODE = 3;
+    }
+
+    function changeToOnlyFloorMode() {
+        addMessage(MODES[4]);
+        CURRENT_MODE = 4;
+    }
+
+    let STOP = false;
+
+    let contextBG;
+
+    let rawData;
+    let mps;
+
+    let pCount;
+
+    let boxes;
+    let currentBox;
+
+    let boxesSnapshotsUndoLimit = 10;
+    let boxesSnapshots = [];
+
+    let GraspedBoxes = [];
+
+    const boxColors = {
+        0: "rgb(171, 223, 234)",
+        1: "rgb(248, 168, 153)",
+        2: "rgb(233, 51, 56)",
+        3: "rgb(192, 191, 192)",
+        4: "rgb(101, 103, 173)",
+        5: "rgb(149, 149, 201)",
+        6: "rgb(0, 0, 255)",
+        7: "rgb(167, 211, 139)",
+        8: "rgb(249, 243, 154)",
+        9: "rgb(195, 134, 73)",
+        10: "rgb(0, 0, 0)",
+        11: "rgb(255, 255, 255)"//上に何もない床
+    };
+
+    const contentNames = {
+        0: "肉・魚",
+        1: "ドリンク・菓子・調味料",
+        2: "レジ・その他",
+        3: "消耗品・雑貨",
+        4: "レジ・その他",
+        5: "レジ・その他",
+        6: "レジ・その他",
+        7: "野菜・果物",
+        8: "加工肉・冷凍",
+        9: "飯・惣菜",
+        10: "壁・柱",
+        11: "上に何もない床"
+    }
+
+    function contentCannotMove() {
+        return 10;
+    }
+    function contentNothing() {
+        return 11;
+    }
+    function contentColor(content) {
+        if (boxColors[content]) return boxColors[content];
+        return "rgb(0,0,0)";
+    }
+    function contentName(content) {
+        if (contentNames[content]) return contentNames[content];
+        return "No-Name";
+    }
+
+    let adjustMode = false;
+    let startPoint = { x: 28, y: 25 };
+
+    function x2j(x) {
+        return Math.floor(x / BoxWidth());
+    }
+    function y2i(y) {
+        return Math.floor(y / BoxHeight());
+    }
+    function j2x(j) {
+        return BoxWidth() * j + BoxWidth() / 2;
+    }
+    function i2y(i) {
+        return BoxHeight() * i + BoxHeight() / 2;
+    }
+
+    function isWithoutContentsBox(c) {
+        return c == contentNothing();
+    }
+
+    function cannotThroughIJ(i, j) {
+        return !isWithoutContentsBox(floor[i][j]);
+    }
+
+
+    let through;    // array
+    let throughMax;
+
+    let labels; // region labeging;
+    let regionIDs;//
+    let region;
+
+    let debugMap;// array
+
+    let dtList = [];
+    let dtn = 10;
+    let dtr = 10;
+    for (let dt = 0; dt < dtn; dt++) {
+        let theta = 2 * Math.PI / dtn * dt;
+        dtList.push({ x: dtr * Math.min(BoxWidth(), BoxHeight()) * Math.cos(theta), y: dtr * Math.min(BoxWidth(), BoxHeight()) * Math.sin(theta) });
+    }
+
+    let AGENTS1 = [
+        { id: 1, todo: [7, 7, 7, 7, 7, 8, 1, 1, 1, 1, 1, 1, 1, 1, 4], done: [], path: [], pred: [], goal: { x: 0, y: 0 }, seekDepth: dtn + 1, dist: 0, reached: false }
+        , { id: 2, todo: [7, 7, 7, 0, 9, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 4], done: [], path: [], pred: [], goal: { x: 0, y: 0 }, seekDepth: dtn + 1, dist: 0, reached: false }
+        , { id: 3, todo: [7, 0, 0, 8, 0, 1, 1, 1, 1, 1, 1, 1, 1, 4], done: [], path: [], pred: [], goal: { x: 0, y: 0 }, seekDepth: dtn + 1, dist: 0, reached: false }
+    ];
+    let AGENTS2 = [
+        { id: 1, todo: [1, 1, 1, 1, 1, 1, 1, 1, 1, 4], done: [], path: [], pred: [], goal: { x: 0, y: 0 }, seekDepth: dtn + 1, dist: 0, reached: false }
+        , { id: 2, todo: [7, 7, 0, 1, 1, 1, 1, 1, 1, 1, 1, 4], done: [], path: [], pred: [], goal: { x: 0, y: 0 }, seekDepth: dtn + 1, dist: 0, reached: false }
+        , { id: 3, todo: [7, 7, 7, 0, 1, 1, 1, 1, 1, 4], done: [], path: [], pred: [], goal: { x: 0, y: 0 }, seekDepth: dtn + 1, dist: 0, reached: false }
+        , { id: 4, todo: [7, 7, 7, 1, 1, 1, 3, 3, 3, 3, 4], done: [], path: [], pred: [], goal: { x: 0, y: 0 }, seekDepth: dtn + 1, dist: 0, reached: false }
+        , { id: 5, todo: [7, 7, 7, 0, 0, 1, 1, 1, 1, 4], done: [], path: [], pred: [], goal: { x: 0, y: 0 }, seekDepth: dtn + 1, dist: 0, reached: false }
+        , { id: 6, todo: [7, 7, 0, 9, 9, 9, 1, 1, 1, 1, 8, 1, 4], done: [], path: [], pred: [], goal: { x: 0, y: 0 }, seekDepth: dtn + 1, dist: 0, reached: false }
+        , { id: 7, todo: [7, 0, 8, 9, 1, 1, 4], done: [], path: [], pred: [], goal: { x: 0, y: 0 }, seekDepth: dtn + 1, dist: 0, reached: false }
+    ];
+    let AGENTS3 = [
+        { id: 1, todo: [7, 0, 1, 1, 1, 1, 1, 1, 1, 1, 3, 4], done: [], path: [], pred: [], goal: { x: 0, y: 0 }, seekDepth: dtn + 1, dist: 0, reached: false }
+        , { id: 2, todo: [7, 7, 7, 7, 0, 0, 9, 1, 1, 1, 1, 1, 1, 1, 1, 4], done: [], path: [], pred: [], goal: { x: 0, y: 0 }, seekDepth: dtn + 1, dist: 0, reached: false }
+        , { id: 3, todo: [7, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 4], done: [], path: [], pred: [], goal: { x: 0, y: 0 }, seekDepth: dtn + 1, dist: 0, reached: false }
+        , { id: 4, todo: [7, 7, 0, 9, 9, 1, 1, 1, 1, 1, 1, 1, 1, 1, 4], done: [], path: [], pred: [], goal: { x: 0, y: 0 }, seekDepth: dtn + 1, dist: 0, reached: false }
+        , { id: 5, todo: [7, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 4], done: [], path: [], pred: [], goal: { x: 0, y: 0 }, seekDepth: dtn + 1, dist: 0, reached: false }
+        , { id: 6, todo: [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 4], done: [], path: [], pred: [], goal: { x: 0, y: 0 }, seekDepth: dtn + 1, dist: 0, reached: false }
+    ];
+
+    let _agents = [AGENTS1, AGENTS2, AGENTS3];
+    let _currentAgentNum = 0;
+    let AGENTS = _agents[_currentAgentNum];
+    function shiftAgentsNum() {
+        _currentAgentNum = (_currentAgentNum + 1) % 3;
+        AGENTS = _agents[_currentAgentNum];
+    }
+
+    //    let STEP = 0;
+    //    let STEP_MAX = 40;
+    let ADJUST_STEP = 0;
+    let ADJUST_STEP_MAX = 100;//25;
+
+
+    let ADJUST_IJ_FROM = { i: 29, j: 26 };
+    let ADJUST_IJ_TO = { i: 80, j: 117 };
+    function onAdjustAreaIJ(i, j) {
+        return ADJUST_IJ_FROM.i <= i && i <= ADJUST_IJ_TO.i && ADJUST_IJ_FROM.j <= j && j <= ADJUST_IJ_TO.j;
+
+    }
+    function onAdjustArea(x, y) {
+        return onAdjustAreaIJ(y2i(y), x2j(x));
+    }
+
+    const QUE_MAX_SIZE = 100;
+
+    function que(aQue, av) {
+        aQue.unshift(av);
+        if (aQue.length > QUE_MAX_SIZE) {
+            aQue.pop();
+        }
+    }
+
+    let MESSAGES = [];
+    const MESSAGE_SIZE_MAX = 5;
+    function addMessage(msg) {
+        MESSAGES.unshift(msg);
+        if (MESSAGES.length > MESSAGE_SIZE_MAX) {
+            MESSAGES.pop();
+        }
+    }
+    function clearMessages() {
+        MESSAGES = [];
+    }
+
+    function newMatrix(aM, aN) {
+        let mat = [];
+        for (let i = 0; i < floor.length; i++) {
+            let row = [];
+            for (let j = 0; j < floor[i].length; j++) {
+                row.push(0);
+            }
+            mat.push(row);
+        }
+        return mat;
+    }
+    function matrixSetValue(m, v) {
+        for (let i = 0; i < m.length; i++)for (let j = 0; j < m[i].length; j++)m[i][j] = v;
+    }
+
+    function addP(aM, aKey, av) {
+        let _ps;
+        if (aM.has(aKey)) {
+            _ps = aM.get(aKey);
+        }
+        else {
+            _ps = new Array();
+        }
+        que(_ps, av);
+        aM.set(aKey, _ps);
+    }
+
+    function GlobalWidth() {
+        return 1113;
+        //return 1000;
+        //return window.innerWidth;
+    }
+    function GlobalHeight() {
+        return 765;
+        //return 600;
+        //return window.innerHeight;
+    }
+
+    function BoxWidth() {
+        return GlobalWidth() / floorData.n;
+    }
+    function BoxHeight() {
+        return GlobalHeight() / floorData.m;
+    }
+
+    function truckToNext(aKey, aTruck) {
+        if (aKey >= MODELS.length) return { x: 0, y: 0 };
+
+        if (MODELS[0] == undefined) {
+            //console.log("truckToNext is skipped: MODELS[0] is undefined.");
+            return { x: 0, y: 0 };
+        }
+
+        let i = 0;
+        let buff = new Array(10);
+        for (; i < aTruck.length; i++) {
+            buff[9 - i] = [aTruck[i].x / 1500, aTruck[i].y / 1000];
+        }
+        for (let j = i; j < 10; j++) {
+            buff[9 - j] = buff[9 - (i - 1)];
+        }
+        let input = tf.tensor([buff]);
+        if (!MODELS[0].hasOwnProperty("predict")) {
+            //console.log("truckToNext is skipped: predict is not owned.");
+            return { x: 0, y: 0 };
+        }
+        let output = MODELS[0].predict(input);
+        let newT = output.dataSync();
+        return { x: newT[0] * 1500, y: newT[1] * 100 };
+    }
+
+    function nextSampleData() {
+        let step = GlobalWidth() / 1400;
+        if (step < 1) step = 1;
+        if (step > 5) step = 5;
+
+        let key = Math.round(Math.random() * (SEQ_SIZE - 1));
+        let prex;
+        let prey;
+        let anx = 0;
+        let any = 0;
+
+        let modelBiasx = 0;
+        let modelBiasy = 0;
+
+        if (!mps.has(key)) {
+            prex = Math.random() * GlobalWidth();
+            prey = Math.random() * GlobalHeight();
+        }
+        else {
+            prex = mps.get(key)[0].x;
+            prey = mps.get(key)[0].y;
+            if (mps.get(key).length > 1) {
+                anx = mps.get(key)[1].x;
+                any = mps.get(key)[1].y;
+
+                let predict = truckToNext(key, mps.get(key));
+                modelBiasx = predict.x;
+                modelBiasy = predict.y;
+                //console.log(modelBiasx, modelBiasy);
+            }
+            else {
+                anx = prex;
+                any = prey;
+            }
+        }
+        let biasx = 0;
+        let biasy = 0;
+
+        if (prex > GlobalWidth() / 2 && prey > GlobalHeight() / 2) {
+            biasy = -0.3;
+        }
+        if (prex > GlobalWidth() / 2 && prey < GlobalHeight() / 2) {
+            biasx = -0.3;
+        }
+        if (prex < GlobalWidth() / 2 && prey < GlobalHeight() / 2) {
+            biasy = 0.3;
+        }
+        if (prex < GlobalWidth() / 2 && prey > GlobalHeight() / 2) {
+            biasx = 0.3;
+        }
+
+        let x = Math.random() * 2 * step - step + biasx + modelBiasx / GlobalWidth();
+        let y = Math.random() * 2 * step - step + biasy + modelBiasy / GlobalHeight();
+        x = prex + x + (prex - anx);
+        y = prey + y + (prey - any);
+
+        if (x < 50) x = 50;
+        if (y < 50) y = 50;
+        if (x > (GlobalWidth() - 50)) x = GlobalWidth() - 50;
+        if (y > (GlobalHeight() - 50)) y = GlobalHeight() - 50;
+
+
+        let tag = undefined;
+        if (onBoxes(Math.round(x), Math.round(y))) {
+            // do not update if the point(x,y) on any boxes.
+            x = prex;
+            y = prey;
+            let i = y2i(y);
+            let j = x2j(x);
+            let maxI = i;
+            let maxJ = j;
+            let tmpMaxVal = 0;
+            if (x > GlobalWidth() / 2 && y > GlobalHeight() / 2) {
+                for (let di = i - 1; di < i - 4; di--) {
+                    for (let dj = j + 1; dj < j + 4; dj++) {
+                        if (through[di][dj] > tmpMaxVal) {
+                            tmpMaxVal = through[di][dj];
+                            maxI = di;
+                            maxJ = dj;
+                        }
+                    }
+                }
+            }
+            else if (x > GlobalWidth() / 2 && y <= GlobalHeight() / 2) {
+                for (let di = i - 1; di < i - 4; di--) {
+                    for (let dj = j - 1; dj < j - 4; dj--) {
+                        if (through[di][dj] > tmpMaxVal) {
+                            tmpMaxVal = through[di][dj];
+                            maxI = di;
+                            maxJ = dj;
+                        }
+                    }
+                }
+            }
+            else if (x <= GlobalWidth() / 2 && y <= GlobalHeight() / 2) {
+                for (let di = i + 1; di < i + 4; di++) {
+                    for (let dj = j - 1; dj < j - 4; dj--) {
+                        if (through[di][dj] > tmpMaxVal) {
+                            tmpMaxVal = through[di][dj];
+                            maxI = di;
+                            maxJ = dj;
+                        }
+                    }
+                }
+            }
+            else if (x <= GlobalWidth() / 2 && y > GlobalHeight() / 2) {
+                for (let di = i + 1; di < i + 4; di++) {
+                    for (let dj = j + 1; dj < j + 4; dj++) {
+                        if (through[di][dj] > tmpMaxVal) {
+                            tmpMaxVal = through[di][dj];
+                            maxI = di;
+                            maxJ = dj;
+                        }
+                    }
+                }
+            }
+            x = j2x(maxJ);
+            y = i2y(maxI);
+            tag = currentBox.tag;
+        }
+        if (onBox(Math.round(x), Math.round(y))) {
+            x = prex;
+            y = prey;
+        }
+
+        let newP = { cartID: key, x: Math.round(x), y: Math.round(y) };
+        if (tag != undefined) newP.tag = tag;
+
+        rawData.push(newP);
+
+        return newP;
+        //return { cartID: key, x: Math.round(x), y: Math.round(y), tag: tag };
+    }
+
+    function isIsolate(bI, bJ) {
+        let f1 = floor[bI + 1][bJ] != contentNothing();
+        let f2 = floor[bI + 1][bJ + 1] != contentNothing();
+        let f3 = floor[bI][bJ + 1] != contentNothing();
+        let f4 = floor[bI - 1][bJ + 1] != contentNothing();
+        let f5 = floor[bI - 1][bJ] != contentNothing();
+        let f6 = floor[bI - 1][bJ - 1] != contentNothing();
+        let f7 = floor[bI][bJ - 1] != contentNothing();
+        let f8 = floor[bI + 1][bJ - 1] != contentNothing();
+
+        return !((f1 && f2 && f3) || (f3 && f4 && f5) || (f5 && f6 && f7) || (f7 && f8 && f1));
+    }
+    function onNarrow(bI, bJ) {
+        let f1 = floor[bI + 1][bJ] == contentNothing();
+        let f2 = floor[bI + 1][bJ + 1] == contentNothing();
+        let f3 = floor[bI][bJ + 1] == contentNothing();
+        let f4 = floor[bI - 1][bJ + 1] == contentNothing();
+        let f5 = floor[bI - 1][bJ] == contentNothing();
+        let f6 = floor[bI - 1][bJ - 1] == contentNothing();
+        let f7 = floor[bI][bJ - 1] == contentNothing();
+        let f8 = floor[bI + 1][bJ - 1] == contentNothing();
+
+        return !((f1 && f2 && f3) || (f3 && f4 && f5) || (f5 && f6 && f7) || (f7 && f8 && f1));
+    }
+
+    function adjustBoxes() {
+        let progress = ADJUST_STEP / ADJUST_STEP_MAX;
+
+        function eachD(strA, b, i, j, unit, flg) {
+
+            let other = { content: floor[i][j], x: j2x(j), y: i2y(i) };
+            let d = 0;
+
+            if (through[i][j] > 0) {
+                d += unit * (1 - progress) * (2 * Math.random() - 1);
+            }
+
+            //if (through[i][j] > 0) d += - unit * (1-progress) * Math.sign(other[strA] - b[strA]) / dist2(b, other);
+            if (through[i][j] > 0) d += - unit * Math.sign(other[strA] - b[strA]) / dist2(b, other);
+            //if (other.content == contentNothing() && ((Math.abs(y2i(b.y) - i) == 1) || Math.abs(x2j(b.x) - j) == 1)) {
+            //if (dist2(b, other) <= unit + 1 && other.content == contentNothing()) {
+            if (other.content == contentNothing()) {
+                if (onNarrow(i, j)) {
+                    d += - unit * progress * Math.sign(other[strA] - b[strA]) / dist2(b, other);
+                }
+            }
+
+            if (other.content == b.content) {
+                d += unit * progress * Math.sign(other[strA] - b[strA]) / dist2(b, other);
+            }
+            return d;
+        }
+
+        for (let b of boxes) {
+            //if (b.content != 9) continue;
+            if (b.content == contentCannotMove()) continue;
+            if (!onAdjustArea(b.x, b.y)) continue;
+            let x, y;
+            let newx = b.x;
+            let newy = b.y;
+            //for (let otherB of boxes) {
+
+            let bI = y2i(b.y);
+            let bJ = x2j(b.x);
+
+            let flgSol = isIsolate(bI, bJ);
+
+            if (flgSol) {
+                //b.content = 0;
+                newx += BoxWidth() * (1 - progress) * (2 * Math.random() - 1);
+                newy += BoxHeight() * (1 - progress) * (2 * Math.random() - 1);
+            }
+
+            let dn = 3;
+            let count = 0;
+            for (let i = y2i(b.y) - dn; i <= y2i(b.y) + dn; i++) {
+                for (let j = x2j(b.x) - dn; j <= x2j(b.x) + dn; j++) {
+                    //if (!onAdjustAreaIJ(i, j)) continue;
+                    //if (floor[i][j] == contentNothing()) continue;
+                    //if (b === otherB) continue;
+                    if (i == y2i(b.y) && j == x2j(b.x)) continue;
+                    newx += eachD("x", b, i, j, BoxWidth(), flgSol) / dn;
+                    newy += eachD("y", b, i, j, BoxHeight(), flgSol) / dn;
+                    count++;
+                }
+            }
+
+            let newx2 = b.x / count;
+            let newy2 = b.y / count;
+            for (let alpha = 1; alpha >= 0; alpha = alpha - 0.01) {
+                let newx3 = alpha * b.x + (1 - alpha) * newx;
+                let newy3 = alpha * b.y + (1 - alpha) * newy;
+                //console.log(alpha, b.x, b.y, newx, newy, newx3, newy3);
+                if (y2i(b.y) == y2i(newy3) && x2j(b.x) == x2j(newx3)) continue;
+                if (!onAdjustArea(newx3, newy3)) break;
+                if (floor[y2i(newy3)][x2j(newx3)] == contentCannotMove()) break;
+                if (floor[y2i(newy3)][x2j(newx3)] != contentNothing()) break;
+                //if (floor[y2i(newy3)][x2j(newx3)] != b.content) console.log("OOOOOKKKK", alpha);
+                //else console.log("*********", alpha);
+                newx2 = newx3;
+                newy2 = newy3;
+            }
+
+            let oldI = y2i(b.y);
+            let oldJ = x2j(b.x);
+            let newI = y2i(newy2);
+            let newJ = x2j(newx2);
+
+            if (floor[newI][newJ] != contentCannotMove()) {
+                if (!onAdjustAreaIJ(newI, newJ)) continue;
+                if (floor[newI][newJ] != contentNothing()) continue;
+                floor[newI][newJ] = b.content;
+                floor[oldI][oldJ] = contentNothing();
+                b.x = j2x(newJ);
+                b.y = i2y(newI);
+            }
+        }
+
+    }
+
+    function isFittable(content, bI, bJ, i, j) {
+        if (floor[i][j] != contentNothing()) return false;
+
+        let f1 = floor[i + 1][j] != contentNothing() && (i + 1 != bI) && (j != bJ);
+        let f2 = floor[i + 1][j + 1] != contentNothing() && (i + 1 != bI) && (j + 1 != bJ);
+        let f3 = floor[i][j + 1] != contentNothing() && (i != bI) && (j + 1 != bJ);
+        let f4 = floor[i - 1][j + 1] != contentNothing() && (i - 1 != bI) && (j + 1 != bJ);
+        let f5 = floor[i - 1][j] != contentNothing() && (i - 1 != bI) && (j != bJ);
+        let f6 = floor[i - 1][j - 1] != contentNothing() && (i - 1 != bI) && (j - 1 != bJ);
+        let f7 = floor[i][j - 1] != contentNothing() && (i != bI) && (j - 1 != bJ);
+        let f8 = floor[i + 1][j - 1] != contentNothing() && (i + 1 != bI) && (j - 1 != bJ);
+
+        return ((f1 && f2 && f3 & !f6) || (f3 && f4 && f5 & !f8) || (f5 && f6 && f7 & !f2) || (f7 && f8 && f1 & !f4));
+        //return ((f1 && f2 && f3) || (f3 && f4 && f5) || (f5 && f6 && f7) || (f7 && f8 && f1));
+    }
+
+    function adjustBoxesPostProcess() {
+        //for isolation
+        let dn = 10;
+
+        for (let b of boxes) {
+            let bI = y2i(b.y);
+            let bJ = x2j(b.x);
+            if (!onAdjustAreaIJ(bI, bJ)) continue;
+            if (!isIsolate(bI, bJ)) {
+                //b.content = 6; 
+                continue;
+            }
+            //b.content = 0;
+
+            let maxScore = 0;
+            let maxI = 0;
+            let maxJ = 0;
+            let flgExistFittable = false;
+            for (let i = bI - dn; i < bI + dn; i++) {
+                for (let j = bJ - dn; j < bJ + dn; j++) {
+                    if (!onAdjustAreaIJ(i, j)) continue;
+                    if (!isFittable(b.content, bI, bJ, i, j)) {
+                        //debugMap[i][j] = 0; 
+                        continue;
+                    }
+                    //debugMap[i][j] = 1;
+                    flgExistFittable = true || flgExistFittable;
+                    let score = 8 / (1 + Math.abs(bI - i) + Math.abs(bJ - j));
+                    for (let ii = i - 1; ii <= i + 1; ii++)for (let jj = j - 1; jj <= j + 1; jj++)if (floor[ii][jj] == b.content) score = score + 1;
+                    if (through[i][j] > 0) score = score - 8;
+                    if (onNarrow(i, j)) {
+
+                        score = score - 8;
+                    }
+                    if (score > maxScore) {
+                        maxScore = score;
+                        maxI = i;
+                        maxJ = j;
+                    }
+                }
+            }
+
+            if (flgExistFittable) {
+                floor[maxI][maxJ] = b.content;
+                b.x = j2x(maxJ);
+                b.y = i2y(maxI);
+                floor[bI][bJ] = contentNothing();
+            }
+        }
+    }
+
+    function minWithoutZero(xs) {
+        let minVal = 1000;
+        for (let i = 0; i < xs.length; i++) {
+            if (xs[i] < minVal && xs[i] != 0) minVal = xs[i];
+        }
+        return minVal;
+    }
+    function lookup(aList, aKey) {
+        let key = aKey;
+        let count = 0;
+        while (true) {
+            if (count > 100) break;
+            if (Object.keys(aList).length < 1) break;
+            if (!aList[key]) return key;
+            key = aList[key];
+            count++;
+        }
+
+        return val;
+    }
+    function regionLabeling() {
+        let lookupDst = {};
+
+        matrixSetValue(labels, 0);
+
+        matrixSetValue(debugMap, 0);
+
+        let nears = [0, 0, 0, 0];
+        let currentMin = 0;
+        for (let i = ADJUST_IJ_FROM.i; i <= ADJUST_IJ_TO.i; i++) {
+            for (let j = ADJUST_IJ_FROM.j; j <= ADJUST_IJ_TO.j; j++) {
+                nears[0] = labels[i][j - 1];
+                nears[1] = labels[i - 1][j - 1];
+                nears[2] = labels[i - 1][j];
+                nears[3] = labels[i - 1][j + 1];
+                let minLabel = minWithoutZero(nears);
+
+                if (floor[i][j] != contentNothing()) {
+                    if (floor[i][j - 1] == contentNothing() && floor[i - 1][j - 1] == contentNothing() && floor[i - 1][j] == contentNothing() && floor[i - 1][j + 1] == contentNothing()) {
+                        currentMin++;
+                        labels[i][j] = currentMin;
+                    }
+                    else {
+                        labels[i][j] = minLabel;
+                    }
+                    for (let l = 0; l < 4; l++) {
+                        if (minLabel != 0 && nears[l] > minLabel) {
+                            lookupDst[nears[l]] = minLabel;
+                        }
+                    }
+                }
+            }
+        }
+
+        regionIDs = [];
+        region = {};
+        for (let i = 0; i < labels.length; i++) {
+            for (let j = 0; j < labels[i].length; j++) {
+                if (labels[i][j] == 0) continue;
+                labels[i][j] = lookup(lookupDst, labels[i][j]);
+                if (regionIDs.indexOf(labels[i][j]) == -1) regionIDs.push(labels[i][j]);
+                if (!region[labels[i][j]]) {
+                    region[labels[i][j]] = [{ i: i, j: j }];
+                }
+                else {
+                    region[labels[i][j]].push({ i: i, j: j });
+                }
+            }
+        }
+
+        /*
+        for (let i = 0; i < labels.length; i++) {
+            for (let j = 0; j < labels[i].length; j++) {
+                if (labels[i][j] == (STEP + ADJUST_STEP) % currentMin + 1) {
+                    //if (labels[i][j] == 1) {
+                    debugMap[i][j] = 1;
+                }
+            }
+        }
+        */
+        //console.log(Object.keys(region));
+    }
+
+
+    function moveRegions() {
+        matrixSetValue(debugMap, 0);
+
+        for (let rId of Object.keys(region)) {
+            let r = region[rId];
+            //r = region[1];
+            let moveTo = { i: 0, j: 0 };
+            for (let tId of Object.keys(region)) {
+                let t = region[tId];
+                if (r == t) continue;
+
+                let minr = { i: 0, j: 0 };
+                let mint = { i: 0, j: 0 };
+                let mind = 100;
+
+                for (let rIJ of r) {
+                    for (let tIJ of t) {
+                        let d = Math.sqrt(Math.pow(rIJ.i - tIJ.i, 2) + Math.pow(rIJ.j - tIJ.j, 2));
+                        if (d < mind) {
+                            mind = d;
+                            minr = rIJ;
+                            mint = tIJ;
+                        }
+                    }
+                }
+
+                if (mind <= 3) {
+                    moveTo.i = moveTo.i - Math.sign(mint.i - minr.i);
+                    moveTo.j = moveTo.j - Math.sign(mint.j - minr.j);
+                    debugMap[mint.i][mint.j] = 1;
+
+                }
+
+                for (let rIJ of r) {
+                    if (floor[rIJ.i][rIJ.j] == contentCannotMove()) continue;
+                    if (floor[rIJ.i + moveTo.i][rIJ.j + moveTo.j] != contentNothing()) continue;
+                    if (!onAdjustAreaIJ(rIJ.i, rIJ.j)) continue;
+                    if (!onAdjustAreaIJ(rIJ.i + moveTo.i, rIJ.j + moveTo.j)) continue;
+
+                    let tmpContent = floor[rIJ.i + moveTo.i][rIJ.j + moveTo.j];
+                    floor[rIJ.i + moveTo.i][rIJ.j + moveTo.j] = floor[rIJ.i][rIJ.j];
+                    floor[rIJ.i][rIJ.j] = tmpContent;
+                }
+            }
+        }
+
+        resetBoxes();
+    }
+
+    function canvasClear() {
+
+        context2D.clearRect(0, 0, context2D.canvas.width, context2D.canvas.height);
+        //context2D.globalAlpha = 0.7;
+        //context2D.fillStyle = "rgba(0.5, 1.0, 0.5, 0.5)";
+        //context2D.fillRect(0, 0, context2D.canvas.width, context2D.canvas.height);
+    }
+
+    function drawText(txt, x, y, color) {
+        context2D.font = "10px 'Times'";
+        context2D.strokeStyle = color;
+        context2D.lineWidth = 1;
+        context2D.strokeText(txt, x, y);
+    }
+    function drawBoxes() {
+        // drawBox that cannot move
+        for (let b of boxes) {
+            if (typeof (b["content"]) === 'undefined') continue;
+            if (b["content"] != contentCannotMove()) continue;
+
+            if (typeof (boxColors["" + b["content"]]) === 'undefined') {
+                context2D.fillStyle = "rgb(0, 200, 200)";
+            }
+            else {
+                context2D.fillStyle = boxColors["" + b["content"]];
+            }
+
+            //context2D.fillRect(b.x + 1, b.y + 1, b.w - 1, b.h - 1);
+            context2D.fillRect(b.x - b.w / 2 + 1, b.y - b.h / 2 + 1, b.w - 1, b.h - 1);
+
+
+            context2D.beginPath();
+            context2D.lineWidth = "1";
+            context2D.strokeStyle = "black";
+            context2D.rect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
+            context2D.stroke();
+
+            /*
+            if (b.content != 0) {
+                context2D.font = "18px 'Times'";
+                context2D.strokeStyle = "rgb(255,255,255)";
+                context2D.lineWidth = 1;
+                //context2D.strokeText(b.tag, b.x + 10, b.y + 20);
+                context2D.strokeText(b.content, b.x, b.y + BoxHeight());
+            }
+            */
+        }
+
+        //draw box that can move
+        for (let b of boxes) {
+            if (typeof (b["content"]) === 'undefined') continue;
+            if (b["content"] == contentCannotMove()) continue;
+
+            if (typeof (boxColors["" + b["content"]]) === 'undefined') {
+                context2D.fillStyle = "rgb(0, 200, 200)";
+            }
+            else {
+                context2D.fillStyle = boxColors["" + b["content"]];
+            }
+
+            //context2D.fillRect(b.x + 1, b.y + 1, b.w - 1, b.h - 1);
+            context2D.fillRect(b.x - b.w / 2 + 1, b.y - b.h / 2 + 1, b.w - 1, b.h - 1);
+
+
+            context2D.beginPath();
+            context2D.lineWidth = "1";
+            context2D.strokeStyle = "black";
+            context2D.rect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
+            context2D.stroke();
+
+            //for grasped boxes
+            for (let b of GraspedBoxes) {
+                context2D.beginPath();
+                context2D.lineWidth = "2";
+                context2D.strokeStyle = "red";
+                context2D.rect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
+                context2D.stroke();
+            }
+            /*
+            if (b.content != 0) {
+                context2D.font = "18px 'Times'";
+                context2D.strokeStyle = "rgb(255,255,255)";
+                context2D.lineWidth = 1;
+                //context2D.strokeText(b.tag, b.x + 10, b.y + 20);
+                context2D.strokeText(b.content, b.x, b.y + BoxHeight());
+            }
+            */
+        }
+    }
+
+    function drawAdjustArea() {
+        context2D.fillStyle = "rgba(150, 200, 255, 0.7)";
+        context2D.fillRect(j2x(ADJUST_IJ_FROM.j), i2y(ADJUST_IJ_FROM.i), j2x(ADJUST_IJ_TO.j - ADJUST_IJ_FROM.j), i2y(ADJUST_IJ_TO.i - ADJUST_IJ_FROM.i));
+    }
+
+    function drawThrough() {
+        for (let i = 0; i < through.length; i++) {
+            for (let j = 0; j < through[i].length; j++) {
+                if (through[i][j] == 0) continue;
+                //let colorVal = Math.floor(255 * (1.0 - through[i][j] / throughMax));
+                let colorVal = through[i][j] / throughMax;
+                context2D.fillStyle = "rgba(255, 0,0," + colorVal + ")";
+                context2D.fillRect(j * BoxWidth(), i * BoxHeight(), BoxWidth(), BoxHeight());
+
+            }
+        }
+    }
+    function drawThroughAgent() {
+        for (let i = 0; i < through.length; i++) {
+            for (let j = 0; j < through[i].length; j++) {
+                if (through[i][j] == 0) continue;
+                let colorVal = Math.floor(255 * (1.0 - through[i][j] / throughMax));
+                context2D.fillStyle = "rgb(255,100,100)";
+                context2D.fillRect(j * BoxWidth(), i * BoxHeight(), BoxWidth(), BoxHeight());
+            }
+        }
+    }
+    function drawDebugMap() {
+        for (let i = 0; i < debugMap.length; i++) {
+            for (let j = 0; j < debugMap[i].length; j++) {
+                if (debugMap[i][j] == 0) continue;
+                context2D.fillStyle = "rgb(0,255,0)";
+                context2D.fillRect(j * BoxWidth(), i * BoxHeight(), BoxWidth(), BoxHeight());
+            }
+        }
+    }
+
+    function drawMessages() {
+        msgArea = document.getElementById("messageArea");
+        msgArea.innerHTML = "";
+        for (let i = MESSAGES.length - 1; i >= 0; i--) {
+            msgArea.innerHTML += MESSAGES[i] + "<BR>";
+        }
+    }
+    function drawProgressBar(rate, x, y, w, h) {
+        context2D.lineWidth = h;
+        context2D.strokeStyle = "rgba(255, 0,0.6)"
+        context2D.beginPath();
+        context2D.moveTo(x, y);
+        context2D.lineTo(x + w * rate, y);
+        context2D.stroke();
+        context2D.strokeStyle = "rgba(100, 100,0.3)"
+        context2D.beginPath();
+        context2D.moveTo(x + w * rate, y);
+        context2D.lineTo(x + w, y);
+        context2D.stroke();
+    }
+
+    function render(aID, aPs) {
+
+        if (mps.size < 1) return;
+
+        context2D.beginPath();
+        context2D.fillStyle = "rgba(" + idColor(aID) + ", 0.2) ";
+        context2D.arc(aPs[0].x, aPs[0].y, Math.round(50 * Math.sin(((pCount % 60) / 60) * 3.14159)) + 20, 0, 2 * Math.PI, true);
+        context2D.fill();
+
+        context2D.beginPath();
+        context2D.lineWidth = 3;
+        context2D.strokeStyle = "rgba(" + idColor(aID) + ",  0.2) ";
+        context2D.moveTo(aPs[0].x, aPs[0].y);
+        for (let i = 1; i < aPs.length; i++) {
+            context2D.lineTo(aPs[i].x, aPs[i].y);
+        }
+        context2D.stroke();
+
+        for (let i = 0; i < aPs.length; i++) {
+            context2D.beginPath();
+            context2D.fillStyle = "rgba(" + idColor(aID) + ", " + (aPs.length - i) / aPs.length * 0.5 + ")";
+            context2D.arc(aPs[i].x, aPs[i].y, 3, 0, 2 * Math.PI, true);
+            context2D.fill();
+        }
+
+        context2D.font = "18px 'Times'";
+        //context2D.strokeStyle = "rgb(" + idColor(aID) + ")";
+        context2D.strokeStyle = "rgb(255,255,255)";
+        context2D.lineWidth = 1;
+        context2D.strokeText("id=" + aID, aPs[0].x, aPs[0].y + 20);
+    }
+
+    function adX(x) {
+        return ((0.768 - 0.138) / (1172 - 103) * (x - 103) + 0.138) * GlobalWidth();
+    }
+    function adY(y) {
+        return ((0.785 - 0.220) / (710 - 28) * (y - 28) + 0.220) * GlobalHeight();
+
+    }
+    function drawWalkTruck() {
+        if (walkData == undefined) return;
+
+        for (let i = 0; i < walkData.length; i++) {
+            context2D.beginPath();
+            context2D.lineWidth = 3;
+            context2D.strokeStyle = "rgba(" + walkData[i][0] + "," + walkData[i][1] + "," + walkData[i][2] + "," + (255 - walkData[i][3]) + ")";
+            //context2D.moveTo(walkData[0][6], walkData[0][7]);
+            let x = walkData[i][4];
+            let y = walkData[i][5];
+            x = adX(x);
+            y = adY(y);
+            //context2D.lineTo(x, y);
+            context2D.moveTo(x, y);
+            x = walkData[i][6];
+            y = walkData[i][7];
+            x = adX(x);
+            y = adY(y);
+            context2D.lineTo(x, y);
+            context2D.stroke();
+        }
+    }
+
+    function updateDataThrough() {
+        for (let d = 0; d < WALK_DATA.length; d++) {
+            let wData = WALK_DATA[d].data;
+            for (let s = 0; s < wData.length; s++) {
+                let j = x2j(adX(wData[s][4]));
+                let i = y2i(adY(wData[s][5]));
+                //console.log(wData[s][4], i, j, s);
+                through[i][j]++;
+                if (through[i][j] > throughMax) throughMax = through[i][j];
+            }
+        }
+        //console.log(throughMax);
+    }
+
+    function clearThrough() {
+        for (let i = 0; i < through.length; i++) {
+            for (let j = 0; j < through[i].length; j++) {
+                through[i][j] = 0;
+            }
+        }
+    }
+    function drawWalk() {
+        context2D.beginPath();
+        context2D.fillStyle = "rgba(255,0,0, 0.2) ";
+        //context2D.arc(adX(walkData[WALK_STEP][6]), adY(walkData[WALK_STEP][7]), Math.round(50 * Math.sin(((WALK_STEP % 60) / 60) * 3.14159)) + 20, 0, 2 * Math.PI, true);
+        context2D.arc(adX(walkData[WALK_STEP][6]), adY(walkData[WALK_STEP][7]), Math.round(50, 0, 2 * Math.PI), 0, 2 * Math.PI, true);
+        context2D.fill();
+
+        context2D.beginPath();
+        context2D.lineWidth = 5;
+        context2D.strokeStyle = "rgb(0,0,0, 1) ";
+        context2D.moveTo(adX(walkData[WALK_STEP][6]), adY(walkData[WALK_STEP][7]));
+        for (let i = WALK_STEP; i >= 0; i--) {
+            context2D.lineTo(adX(walkData[i][6]), adY(walkData[i][7]));
+        }
+        context2D.stroke();
+
+        //WALK_STEP = (WALK_STEP + 10) % walkData.length;
+        WALK_STEP = (WALK_STEP + 10) % walkData.length;
+    }
+
+    function renderAgent(agent) {
+
+        path = agent.path;
+        if (path.length < 1) return;
+
+
+        if (agent.path.length > 1) {
+            context2D.beginPath();
+            context2D.lineWidth = 3;
+            context2D.strokeStyle = "rgba(0,255,0,  0.1) ";
+            context2D.moveTo(agent.goal.x, agent.goal.y);
+            context2D.lineTo(agent.path[0].x, agent.path[0].y);
+            context2D.stroke();
+        }
+
+        if (agent.pred.length > 1) {
+            for (let p of agent.pred) {
+                context2D.beginPath();
+                context2D.lineWidth = 0.5;
+                context2D.strokeStyle = "rgba(255,0,0,  0.3) ";
+                //context2D.moveTo(agent.pred[0].x, agent.pred[0].y);
+                //context2D.moveTo(agent.goal.x, agent.goal.y);
+                context2D.moveTo(p.x, p.y);
+                let fromP = p.from;
+                while (true) {
+                    if (!fromP.from) break;
+                    context2D.lineTo(fromP.x, fromP.y);
+                    fromP = fromP.from;
+                }
+                context2D.stroke();
+            }
+        }
+
+
+        context2D.beginPath();
+        context2D.fillStyle = "rgba(" + idColor(agent.id) + ", 0.9) ";
+        context2D.arc(path[0].x, path[0].y, 1.5 * BoxWidth(), 0, 2 * Math.PI, true);
+        context2D.fill();
+
+
+        context2D.beginPath();
+        context2D.lineWidth = 3;
+        context2D.strokeStyle = "rgba(" + idColor(agent.id) + ",  0.9) ";
+        context2D.moveTo(path[0].x, path[0].y);
+        for (let i = 1; i < path.length; i++) {
+            context2D.lineTo(path[i].x, path[i].y);
+        }
+        context2D.stroke();
+
+        for (let i = 0; i < path.length; i++) {
+            context2D.beginPath();
+            context2D.fillStyle = "rgba(" + idColor(agent.id) + ", " + (path.length - i) / path.length * 0.5 + ")";
+            context2D.arc(path[i].x, path[i].y, 3, 0, 2 * Math.PI, true);
+            context2D.fill();
+        }
+        if (agent.pred.length > 1) {
+            context2D.beginPath();
+            context2D.lineWidth = 1;
+            context2D.strokeStyle = "rgba(0,0,255,  1) ";
+            context2D.moveTo(agent.pred[0].x, agent.pred[0].y);
+            context2D.lineTo(agent.goal.x, agent.goal.y);
+            context2D.stroke();
+        }
+
+        context2D.font = "18px 'Times'";
+        //context2D.strokeStyle = "rgb(" + idColor(aID) + ")";
+        context2D.strokeStyle = "rgb(255,255,255)";
+        context2D.lineWidth = 1;
+        context2D.strokeText("agent", path[0].x, path[0].y + 20);
+    }
+
+    function onBox(box, x, y) {
+        return (box.x - box.w / 2 <= x) && (x <= box.x + box.w / 2) && (box.y - box.h / 2 <= y) && (y <= box.y + box.h / 2);
+    }
+
+    function onBoxes(x, y) {
+        for (let b of boxes) {
+            if (onBox(b, x, y)) {
+                currentBox = b;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function dist2(f, t) {
+        return Math.sqrt(Math.pow(f.x - t.x, 2) + Math.pow(f.y - t.y, 2));
+    }
+    function searchNearGoal(goalContent, current) {
+        let dist = 100000000;
+        let x = 0, y = 0;
+        for (let b of boxes) {
+            if (b["content"] == goalContent) {
+                let tDist = dist2(b, current);
+                if (tDist < dist) {
+                    dist = tDist;
+                    x = b.x;
+                    y = b.y;
+                }
+            }
+        }
+        return { x: x, y: y, dist: dist };
+    }
+
+    function setNewGoal(agent) {
+        if (agent.todo.length < 1) {
+            console.log("Agent", agent.id, " Finished.");
+            return false;
+        }
+
+        let g = agent.todo[0];
+        agent.todo.shift();
+        agent.todo.push(g);
+        agent.done.push(g);
+
+        let goal = searchNearGoal(g, agent.path[0]);
+        agent.goal.x = goal.x;
+        agent.goal.y = goal.y;
+
+        agent.seekDepth = dtn + 1;
+        agent.dist = goal.dist;
+        agent.reached = false;
+
+        return true;
+    }
+
+    function swapMinPTop(ps) {
+        function ev(p) {
+            return p.dist + p.past;
+        }
+        let minD = ev(ps[0]);
+        let minI = 0;
+        for (let i = 1; i < ps.length; i++) {
+            if (ev(ps[i]) < minD) {
+                minD = ev(ps[i]);
+                minI = i;
+            }
+        }
+        let tmp = ps[0];
+        ps[0] = ps[minI];
+        ps[minI] = tmp;
+
+        return minI;
+    }
+
+    function nextGo(agent) {
+        if (dist2(agent.goal, agent.path[0]) < 3 * Math.max(BoxHeight(), BoxWidth())) {
+            console.log("Agent", agent.id, " reached to ", agent.done[agent.done.length - 1]);
+            if (!setNewGoal(agent)) return;
+        }
+
+        if (dist2(agent.goal, agent.path[0]) < agent.dist) {
+            agent.dist = dist2(agent.goal, agent.path[0]);
+            agent.seekDepth = Math.floor(agent.seekDepth / dtn);
+            if (agent.seekDepth < dtn) agent.seekDepth = dtn + 1;
+        }
+
+        let current = { x: agent.path[0].x, y: agent.path[0].y, dist: dist2(agent.goal, agent.path[0]), from: false, past: 0 };
+
+        let pathPred = [current];
+        let depth = 0;
+        let trash = [agent.path[0]];
+
+        while (true) {
+            depth++;
+            if (pathPred.length < 1) break;
+
+            swapMinPTop(pathPred);
+
+            if (depth > agent.seekDepth - 1) break;
+
+            let p = pathPred.shift();
+            trash.push(p);
+
+            if (p.dist < 3 * Math.min(BoxWidth(), BoxHeight())) {
+                pathPred.unshift(p);
+                agent.reached = true;
+                break;
+            }
+            else {
+                agent.reached = false;
+            }
+
+            if (p.dist > agent.dist) {
+                if (!agent.reached) {
+                    agent.seekDepth += 1;
+                    through[y2i(p.y)][x2j(p.x)]++;
+                }
+            }
+
+            for (dt of dtList) {
+                let newx = p.x + dt.x;
+                let newy = p.y + dt.y;
+
+                let newx2 = newx;
+                let newy2 = newy;
+                for (let alpha = 1; alpha >= 0; alpha = alpha - 1 / dtr) {
+                    newx2 = alpha * p.x + (1 - alpha) * newx;
+                    newy2 = alpha * p.y + (1 - alpha) * newy;
+                    if (cannotThroughIJ(y2i(newy2), x2j(newx2))) {
+                        newx2 = (alpha + 1 / dtr) * p.x + (1 - (alpha + 1 / dtr)) * newx;
+                        newy2 = (alpha + 1 / dtr) * p.y + (1 - (alpha + 1 / dtr)) * newy;
+                        newx = newx2;
+                        newy = newy2;
+                        break;
+                    }
+                }
+                if (cannotThroughIJ(y2i(newy), x2j(newx))) continue;
+
+
+                let existSame = false;
+                for (let tp of pathPred) {
+                    if (dist2(tp, { x: newx, y: newy }) < 1) {
+                        existSame = true;
+                        break;
+                    }
+                }
+                if (existSame) continue;
+
+                for (let tp of trash) {
+                    if (dist2(tp, { x: newx, y: newy }) < 1) {
+                        existSame = true;
+                        break;
+                    }
+                }
+                if (existSame) continue;
+
+                pathPred.push({ x: newx, y: newy, dist: dist2({ x: newx, y: newy }, agent.goal), from: p, past: p.past + dist2(p, { x: newx, y: newy }) });
+            }
+        }
+
+        if (pathPred.length < 1) {
+            console.log("Agent", agent.id, " has no-way.");
+            return;
+        }
+
+        let minP = pathPred[0];
+        let path = [minP];
+        while (true) {
+            let p = minP.from;
+            path.unshift(p);
+            if (!p.from) {
+                break;
+            }
+            minP = p;
+        }
+        agent.pred = pathPred;
+
+        for (let alpha = 0; alpha < 1; alpha = alpha + 1 / dtr) {
+            que(agent.path, { x: minP.x * alpha + (1 - alpha) * agent.path[0].x, y: alpha * minP.y + (1 - alpha) * agent.path[0].y });
+        }
+    }
+
+
+    function drawSwipeSelectArea() {
+        //console.log("X", swipe.startX, swipe.endX);
+        //console.log("Y", swipe.startY, swipe.endY);
+
+        context2D.fillStyle = "rgba(200, 0, 0, 0.5)";
+        context2D.fillRect(Math.min(swipe.startX, swipe.endX), Math.min(swipe.startY, swipe.endY), Math.abs(swipe.startX - swipe.endX), Math.abs(swipe.startY - swipe.endY));
+
+
+        for (let b of swipe.selectedBoxes) {
+            context2D.beginPath();
+            context2D.lineWidth = "2";
+            context2D.strokeStyle = "red";
+            context2D.rect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
+            context2D.stroke();
+        }
+    }
+
+    function update() {
+        drawMessages();
+        if (STOP) return;
+        if (!renderMode) {
+            window.requestAnimationFrame(update);
+            return;
+        }
+
+        canvasClear();
+
+        if (onOnlyFloorMode()) {
+            drawBoxes();
+
+        }
+        else if (onDataDrawMode()) {
+            drawThrough();
+            drawWalkTruck();
+            drawWalk();
+            drawBoxes();
+
+        }
+        else if (onRandomWalkMode()) {
+            for (let i = 0; i < SEQ_SIZE; i++) {
+                let kp = nextSampleData();
+                let v;
+                if (kp.tag) {
+                    v = { x: kp.x, y: kp.y, tag: kp.tag };
+                }
+                else {
+                    v = { x: kp.x, y: kp.y };
+                }
+                addP(mps, kp.cartID, v);
+
+                updateThrough(kp.x, kp.y);
+            }
+            pCount++;
+
+            drawThrough();
+            drawBoxes();
+            let keys = mps.keys();
+            for (k of keys) {
+                render(k, mps.get(k));
+            }
+        }
+        else if (onSeekMode()) {
+            drawBoxes();
+            for (let a of AGENTS) {
+                nextGo(a);
+                renderAgent(a);
+                updateThroughAgent(a);
+            }
+
+            drawThroughAgent();
+            //STEP++;
+        }
+        else if (onAdjustMode()) {
+            drawAdjustArea();
+            drawThroughAgent();
+
+            if (ADJUST_STEP >= ADJUST_STEP_MAX) {
+                for (let i = 0; i < floorData["m"]; i++)for (let j = 0; j < floorData["n"]; j++) {
+                    through[i][j] = through[i][j] - 2;
+                    if (through[i][j] < 0) through[i][j] = 0;
+                    through[i][j] = 0;
+                }
+            }
+            else if (ADJUST_STEP > 0.2 * ADJUST_STEP_MAX) {
+                addMessage("シマの間隔を調整中");
+                adjustBoxesPostProcess();
+                regionLabeling();
+                for (let itr = 0; itr < 5; itr++) {
+                    moveRegions();
+                }
+            }
+            else if (ADJUST_STEP > 0.1 * ADJUST_STEP_MAX) {
+                adjustBoxesPostProcess();
+            }
+            else {
+                adjustBoxes();
+                console.log("DONE");
+                addMessage("配置を動的に変更中");
+            }
+            ADJUST_STEP++;
+            if (ADJUST_STEP > ADJUST_STEP_MAX) {
+                ADJUST_STEP = 0;
+
+                changeToRandomWalkMode();
+            }
+
+            drawBoxes();
+            drawDebugMap();
+            drawProgressBar(ADJUST_STEP / ADJUST_STEP_MAX, GlobalWidth() * 0.1, GlobalHeight() * 0.95, GlobalWidth() / 2, 3 * BoxHeight());
+        }
+
+
+        if (floor[MOUSE_I][MOUSE_J] != contentNothing() && floor[MOUSE_I][MOUSE_J] != contentCannotMove()) {
+            //drawText(contentName(floor[MOUSE_I][MOUSE_J]), MOUSE_X, MOUSE_Y, contentColor(floor[MOUSE_I][MOUSE_J]));
+            drawText(contentName(floor[MOUSE_I][MOUSE_J]), MOUSE_X, MOUSE_Y, "rgba(255,255,255, 0.5)");
+        }
+
+        drawSwipeSelectArea();
+
+        window.requestAnimationFrame(update);
+    }
+
+    function updateThrough(x, y) {
+        let i = y2i(y);
+        let j = x2j(x);
+        through[i][j]++;
+
+        if (through[i][j] > throughMax) throughMax = through[i][j];
+    }
+    function updateThroughAgent(agent) {
+        if (agent.path.length < 1) return;
+
+        for (let p of agent.path) {
+            if (agent.seekDepth > dtn + 10) {
+                let i = y2i(p.y);
+                let j = x2j(p.x);
+
+                //through[i][j]++;
+                if (through[i][j] > throughMax) throughMax = through[i][j];
+            }
+        }
+    }
+
+    let mousePreX;
+    let mousePreY;
+
+    function switchRenderMode(e) {
+        console.log(e.clientX, e.clientY);
+        console.log(y2i(e.clientY), x2j(e.clientX));
+        console.log(j2x(x2j(e.clientX)), i2y(y2i(e.clientY)));
+        console.log(e.clientX / GlobalWidth(), e.clientY / GlobalHeight());
+        return;
+
+        if (renderMode) {
+            renderMode = false;
+
+            console.log(rawData);
+        }
+        else {
+            renderMode = true;
+        }
+
+        mousePreX = e.clientX;
+        mousePreY = e.clientY;
+
+        console.log("ONONONO");
+        if (!onBoxes(e.clientX, e.clientY)) {
+            currentBox = undefined;
+        }
+    }
+
+
+    function onMouseMove(e) {
+        MOUSE_I = y2i(e.clientY);
+        MOUSE_J = x2j(e.clientX);
+        MOUSE_X = e.clientX;
+        MOUSE_Y = e.clientY;
+
+
+        if (renderMode) return;
+        if (currentBox == undefined) return;
+        if (currentBox.content == 0) return;
+
+        let dx = e.clientX - mousePreX;
+        let dy = e.clientY - mousePreY;
+
+        currentBox.x += dx;
+        currentBox.y += dy;
+
+        mousePreX = e.clientX;
+        mousePreY = e.clientY;
+    }
+
+    function addWalkDataMessage(num) {
+        clearMessages();
+        addMessage(WALK_DATA[num].filename);
+        addMessage(WALK_DATA[num].entrance);
+        addMessage(WALK_DATA[num].cluster);
+    }
+    function keydown() {
+        if (event.key == 'u') undoBoxesSnapshot();
+
+        if (onDataDrawMode()) {
+            if (event.keyCode == 39) { // right arrow
+                shiftWalkData();
+                addWalkDataMessage(walkDataNum);
+                return;
+            }
+            if (event.keyCode == 37) { // left arrow
+                unShiftWalkData();
+                addWalkDataMessage(walkDataNum);
+                return;
+            }
+        }
+        if (onSeekMode()) {
+            if (event.keyCode == 39) { // right arrow
+                shiftAgentsNum();
+                initAgents();
+                addMessage("クラスタ" + (_currentAgentNum + 1));
+                return;
+            }
+        }
+
+
+        if (event.key == ' ') {
+            if (STOP) {
+                STOP = false;
+                update();
+            }
+            else {
+                STOP = true;
+                addMessage("停止中");
+            }
+        }
+        if (STOP) return;
+
+        if (event.key == 'd') changeToDataDrawMode();
+        if (event.key == 'r') changeToRandomWalkMode();
+        if (event.key == 'a') { saveBoxesSnapshot(); changeToAdjustMode(); }
+        if (event.key == 's') changeToSeekMode();
+        if (event.key == 'f') changeToOnlyFloorMode();
+
+        if (event.key == '1') {
+            addMessage("図面変更 160-1 (7/16)");
+            resetFloorData(mapDataStr1);
+            init();
+        }
+        if (event.key == '2') {
+            addMessage("図面変更 160-2 (10/24)");
+            resetFloorData(mapDataStr2);
+            init();
+        }
+        //console.log(event.key, "pressed");
+    }
+
+
+    function setSwipe() {
+        let t = document.getElementById("canvas2d");
+        let startX;        // タッチ開始 x座標
+        let startY;        // タッチ開始 y座標
+        let moveX;    // スワイプ中の x座標
+        let moveY;    // スワイプ中の y座標
+
+        // スワイプを感知する最低距離
+        let dist = 0.1 * GlobalWidth();
+        let longDist = 0.8 * GlobalWidth();
+        let longHightDist = 0.8 * GlobalHeight();
+
+        // タッチ開始時： xy座標を取得
+        t.addEventListener("touchstart", function (e) {
+            e.preventDefault();
+            startX = e.touches[0].pageX;
+            startY = e.touches[0].pageY;
+        });
+
+        // スワイプ中： xy座標を取得
+        t.addEventListener("touchmove", function (e) {
+            e.preventDefault();
+            moveX = e.changedTouches[0].pageX;
+            moveY = e.changedTouches[0].pageY;
+        });
+
+        // タッチ終了時： スワイプした距離から左右どちらにスワイプしたかを判定する/距離が短い場合何もしない
+        t.addEventListener("touchend", function (e) {
+
+            if (startX > moveX && startX > moveX + longDist) {        // 右から左に長いスワイプ
+                console.log("<-- <-- <--");
+                addMessage("図面変更 160-1 (7/16)");
+                resetFloorData(mapDataStr1);
+                init();
+                return;
+            }
+            else if (startX < moveX && startX + longDist < moveX) {    // 左から右に長いスワイプ
+                console.log("--> --> -->");
+                addMessage("図面変更 160-2 (10/24)");
+                resetFloorData(mapDataStr2);
+                init();
+                return;
+            }
+
+            if (startX > moveX && startX > moveX + dist) {        // 右から左にスワイプ
+                console.log("<-");
+                unShiftWalkData();
+                addWalkDataMessage(walkDataNum);
+                return;
+            }
+            else if (startX < moveX && startX + dist < moveX) {    // 左から右にスワイプ
+                console.log("<-");
+                shiftWalkData();
+                addWalkDataMessage(walkDataNum);
+                return;
+            }
+
+            if (startY > moveY && startY > moveY + longHightDist) {        // 下から上にスワイプ
+                console.log("↑↑↑");
+                return;
+            }
+            else if (startY < moveY && startY + longHightDist < moveY) {    // 上から下にスワイプ
+                console.log("↓↓↓");
+                if (onDataDrawMode()) { console.log("hai"); changeToRandomWalkMode(); return; }
+                if (onRandomWalkMode()) { changeToSeekMode(); return; }
+                //if (onSeekMode()) { changeToAdjustMode(); return; }
+                if (onSeekMode()) { changeToOnlyFloorMode(); return; }
+                //if (onAdjustMode()) { changeToOnlyFloorMode(); return; }
+                if (onOnlyFloorMode()) { changeToDataDrawMode(); return; }
+                return;
+            }
+        });
+    }
+
+    // box をつかんではなす
+    function isBoxInNear(aBox, aX, aY) {
+        let rangeW = BoxWidth() * 1.5;
+        let rangeH = BoxHeight() * 1.5;
+        return Math.abs(aBox.x - aX) < rangeW && Math.abs(aBox.y - aY) < rangeH;
+    }
+    function pickupBoxes(aX, aY) {
+        for (let b of boxes) {
+            if ((b.content != contentCannotMove()) && isBoxInNear(b, aX, aY)) {
+                GraspedBoxes.push(b);
+            }
+        }
+        drawBoxes();
+    }
+    function moveGraspedBoxes(aX, aY) {
+        if (GraspedBoxes.length < 1) return;
+        let preX = GraspedBoxes[0].x;
+        let preY = GraspedBoxes[0].y;
+        let moveX = aX - preX;
+        let moveY = aY - preY;
+        for (let b of GraspedBoxes) {
+            b.x += moveX;
+            b.y += moveY;
+        }
+        drawBoxes();
+    }
+    function isBoxOnContentBox(aB, aX, aY) {
+        for (let b of boxes) {
+            if (b == aB) continue;
+            if (b["content"] == contentCannotMove()) continue;
+            if (
+                /*
+                (( (b.x-b.w/2) < (aB.x-aB.w/2) && (aB.x-aB.w/2)<(b.x+b.w/2) ) || ( (b.x-b.w/2) < (aB.x+aB.w/2) && (aB.x+aB.w/2)<(b.x+b.w/2) ))
+               &&
+                (( (b.y-b.h/2) < (aB.y-aB.h/2) && (aB.y-aB.h/2)<(b.y+b.h/2) ) || ( (b.y-b.h/2) < (aB.y+aB.h/2) && (aB.y+aB.h/2)<(b.y+b.h/2) ))
+                */
+                (((b.x - b.w / 2) < (aX - aB.w / 2) && (aX - aB.w / 2) < (b.x + b.w / 2)) || ((b.x - b.w / 2) < (aX + aB.w / 2) && (aX + aB.w / 2) < (b.x + b.w / 2)))
+                &&
+                (((b.y - b.h / 2) < (aY - aB.h / 2) && (aY - aB.h / 2) < (b.y + b.h / 2)) || ((b.y - b.h / 2) < (aY + aB.h / 2) && (aY + aB.h / 2) < (b.y + b.h / 2)))
+            ) return true;
+        }
+        return false;
+    }
+    function canPut(aB, aX, aY) {
+        return !isBoxOnContentBox(aB, aX, aY);
+    }
+    function putBoxNearBlank(aB, aX, aY) {
+        for (let r = 1; r < 100; r++) {
+            let R = r;//r*BoxWidth()/2;
+            for (let th = 0; th < 6.283184; th += 0.785398) {
+                let newX = aX + R * Math.cos(th);
+                let newY = aY + R * Math.sin(th);
+                //console.log("search:", newX, newY);
+                if (canPut(aB, newX, newY)) {
+                    //console.log("X:", aB.x, newX);
+                    //console.log("Y:", aB.y, newY);
+                    aB.x = newX;
+                    aB.y = newY;
+                    return;
+                }
+            }
+        }
+        console.log("NOT FOUND");
+    }
+    function releaseBoxes() {
+        for (let b of GraspedBoxes) {
+            if (canPut(b, b.x, b.y)) {
+                console.log("OK");
+            }
+            else {
+                console.log("NG");
+                putBoxNearBlank(b, b.x, b.y);
+            }
+        }
+        GraspedBoxes.splice(0);
+    }
+
+    function setSwipeGraspAndDrop() {
+        let t = document.getElementById("canvas2d");
+        let startX;        // タッチ開始 x座標
+        let startY;        // タッチ開始 y座標
+        let moveX;    // スワイプ中の x座標
+        let moveY;    // スワイプ中の y座標
+
+        // スワイプを感知する最低距離
+        let dist = 0.1 * GlobalWidth();
+        let longDist = 0.8 * GlobalWidth();
+        let longHightDist = 0.8 * GlobalHeight();
+
+        // タッチ開始時： xy座標を取得
+        t.addEventListener("touchstart", function (e) {
+            e.preventDefault();
+            startX = e.touches[0].pageX;
+            startY = e.touches[0].pageY;
+            pickupBoxes(e.touches[0].pageX, e.touches[0].pageY);
+        });
+
+        // スワイプ中： xy座標を取得
+        t.addEventListener("touchmove", function (e) {
+            e.preventDefault();
+            moveX = e.changedTouches[0].pageX;
+            moveY = e.changedTouches[0].pageY;
+            moveGraspedBoxes(e.changedTouches[0].pageX, e.changedTouches[0].pageY);
+        });
+
+        // タッチ終了時： スワイプした距離から左右どちらにスワイプしたかを判定する/距離が短い場合何もしない
+        t.addEventListener("touchend", function (e) {
+            releaseBoxes();
+        });
+    }
+
+    let swipe = {
+        selected: false,
+        startX: 0,
+        startY: 0,
+        endX: 0,
+        endY: 0,
+        selectedBoxes: []
+    };
+    function isInSwipeSelectArea(aX, aY) {
+        return (Math.min(swipe.startX, swipe.endX) <= aX) && (aX <= Math.max(swipe.startX, swipe.endX))
+            && (Math.min(swipe.startY, swipe.endY) <= aY) && (aY <= Math.max(swipe.startY, swipe.endY));
+    }
+    function collectSwipeSelectedBoxes() {
+        for (let b of boxes) {
+            if (b.content == contentCannotMove()) continue;
+            if (isInSwipeSelectArea(b.x, b.y)) swipe.selectedBoxes.push(b);
+        }
+    }
+    function moveSwipeSelectedBoxes(aX, aY) {  // aX, aY は変化量
+        for (let b of swipe.selectedBoxes) {
+            b.x += aX;
+            b.y += aY;
+        }
+    }
+
+
+    let alreadyAddSwipe = false;
+    function setSwipeSelectAndMove() {
+        if (alreadyAddSwipe) return; // init() を再呼び出ししたときにこのメソッドを再定義しないように。
+        alreadyAddSwipe = true;
+
+        let t = document.getElementById("canvas2d");
+        let startX;        // タッチ開始 x座標
+        let startY;        // タッチ開始 y座標
+        let moveX;    // スワイプ中の x座標
+        let moveY;    // スワイプ中の y座標
+        let preX;
+        let preY;
+
+        // タッチ開始時： xy座標を取得
+        t.addEventListener("touchstart", function (e) {
+            e.preventDefault();
+            startX = e.touches[0].pageX;
+            startY = e.touches[0].pageY;
+
+            if (isInSwipeSelectArea(startX, startY)) { // 長方形の中をタッチ, これから範囲内のboxesを動かす
+                preX = startX;
+                preY = startY;
+
+                // 選択領域を0にするため。
+                swipe.startX = 0;
+                swipe.startY = 0;
+                swipe.endX = 0;
+                swipe.endY = 0;
+
+                if (swipe.selectedBoxes.length > 1) saveBoxesSnapshot(); // 動かす直前に boxes を全て記録
+            }
+            else { // 長方形を描画し始める
+                swipe.selected = false;
+                swipe.selectedBoxes = [];
+                swipe.startX = startX;
+                swipe.startY = startY;
+                swipe.endX = startX;
+                swipe.endY = startY;
+            }
+        });
+
+        // スワイプ中： xy座標を取得
+        t.addEventListener("touchmove", function (e) {
+            e.preventDefault();
+            moveX = e.changedTouches[0].pageX;
+            moveY = e.changedTouches[0].pageY;
+
+            if (swipe.selected) { // 長方形を移動している最中
+                moveSwipeSelectedBoxes(moveX - preX, moveY - preY);
+                preX = moveX;
+                preY = moveY;
+            }
+            else { // 長方形を選択している最中
+                swipe.endX = moveX;
+                swipe.endY = moveY;
+                drawSwipeSelectArea();
+            }
+            //console.log("move", swipe.startX, swipe.startY, swipe.endX, swipe.endY);
+        });
+
+        // タッチ終了時： スワイプした距離から左右どちらにスワイプしたかを判定する/距離が短い場合何もしない
+        t.addEventListener("touchend", function (e) {
+            if (!swipe.selected) { // 長方形で選択して指を離した直後
+                swipe.selected = true;
+                collectSwipeSelectedBoxes();
+            }
+            else { // box をドラッグして指を離した直後
+                swipe.selected = false;
+                swipe.selectedBoxes = [];
+
+
+            }
+        });
+    }
+
+    function saveBoxesSnapshot() {
+        boxesSnapshots.unshift(JSON.stringify(boxes));
+        if (boxesSnapshots.length > boxesSnapshotsUndoLimit) {
+            boxesSnapshots.pop();
+        }
+        console.log("saved.", boxesSnapshots.length)
+    }
+
+    function undoBoxesSnapshot() {
+        if (boxesSnapshots.length < 1) return;
+        preBoxes = JSON.parse(boxesSnapshots.shift());
+        boxes = preBoxes;
+        update();
+
+
+        console.log("undo", boxesSnapshots.length);
+    }
+
+    function setBG() {
+        let canvasBG = document.getElementById("canvasBG");
+        canvasBG.width = GlobalWidth();
+        canvasBG.height = GlobalHeight();
+        contextBG = canvasBG.getContext("2d");
+        //contextBG.globalCompositeOperation = "screen";
+    }
+
+
+    function initAgents() {
+        for (let a of AGENTS) {
+            //que(a.path, { x: x, y: y });
+            que(a.path, { x: j2x(121), y: i2y(83) });
+
+            setNewGoal(a);
+        }
+    }
+    function addInitP() {
+        let x = 0, y = 0;
+        find_loop:
+        for (let i = floorData.m - 1; i >= 0; i--) {
+            //for (let j = floorData.n - 1; j >= 0; j--) {
+            for (let j = 30; j < floorData.n; j++) {
+                if (isWithoutContentsBox(floor[i][j])) {
+                    x = j * BoxWidth() + BoxWidth() / 2;
+                    y = i * BoxHeight() + BoxHeight() / 2;
+                    break find_loop;
+                }
+            }
+        }
+
+        for (let id = 0; id < SEQ_SIZE; id++) {
+            //addP(mps, id, { x: x, y: y });
+            addP(mps, id, { x: j2x(121), y: i2y(83) });
+        }
+
+        initAgents();
+        /*
+        for (let a of AGENTS) {
+            //que(a.path, { x: x, y: y });
+            que(a.path, { x: j2x(121), y: i2y(83) });
+ 
+            setNewGoal(a);
+        }
+        */
+        startPoint.x = x;
+        startPoint.y = y;
+
+    }
+
+    function resetBoxes() {
+        boxes = [];
+
+        for (let i = 0; i < floor.length; i++) {
+            for (let j = 0; j < floor[i].length; j++) {
+                if (isWithoutContentsBox(floor[i][j])) continue;
+                boxes.push({ x: j2x(j), y: i2y(i), w: BoxWidth(), h: BoxHeight(), content: floor[i][j], tag: floor[i][j] + "(" + i + "," + j + ")" })
+            }
+        }
+    }
+
+    function resetFloorData(dataStr) {
+        floorData = JSON.parse(dataStr);
+        floor = [];
+        for (let i = 0; i < floorData["m"]; i++) {
+            let row = [];
+            for (let j = 0; j < floorData["n"]; j++) {
+                row.push(floorData["data"][i * floorData["n"] + j]);
+            }
+            floor.push(row);
+        }
+    }
+
+    function init() {
+
+        pCount = 1;
+        renderMode = true;
+        mps = new Map();
+        rawData = [];
+
+        canvas2D = document.getElementById("canvas2d");
+        canvas2D.width = GlobalWidth();
+        canvas2D.height = GlobalHeight();
+        context2D = canvas2D.getContext("2d");
+        //context2D.globalCompositeOperation = "screen";
+        //context2D.globalCompositeOperation = "lighter";
+        //context2D.globalCompositeOperation = "source-over";
+
+        canvasClear();
+
+        resetBoxes();
+
+        through = newMatrix(floorData["m"], floorData["n"]);
+        throughMax = 0;
+
+        for (let i = 0; i < floor.length; i++) {
+            let row = [];
+            for (let j = 0; j < floor[i].length; j++) {
+                row.push(0);
+            }
+            through.push(row);
+        }
+
+        debugMap = newMatrix(floorData["m"], floorData["n"]);
+
+        labels = newMatrix(floorData["m"], floorData["n"]);
+        regionIDs = [];
+
+        addInitP();
+        changeToRandomWalkMode();
+        //changeToDataDrawMode();
+        //console.log(WALK_DATA);
+        walkData = WALK_DATA[0].data;
+        addWalkDataMessage(walkDataNum);
+
+        //setSwipe();
+        //setSwipeGraspAndDrop();
+        setSwipeSelectAndMove();
+        boxesSnapshots = [];
+        swipe.selected = false;
+        swipe.startX = 0;
+        swipe.endX = 0;
+        swipe.startY = 0;
+        swipe.endY = 0;
+        //saveBoxesSnapshot();
+
+        window.requestAnimationFrame(update);
+    }
+
+    window.onload = init;
+    window.onmousedown = switchRenderMode;
+    window.onmousemove = onMouseMove;
+
+    document.onkeydown = keydown;
+
+
+</script>
+</script>>
+
+<!-- <body style="background-image: url(20190326testbg.png); background-size: cover;"> -->
+
+<body>
+
+    <!--<canvas id="canvas2d" style="position:fixed; top:0px; left:0px; background-color:rgba(0,0,0,0);"></canvas>-->
+    <div id="messageArea"
+        style="position:fixed;right:0;bottom:0;background-color:rgba(0,0,0,0.8);color:#ffffff;font-size:10pt;">
+        サンプル
+    </div>
+
+    <!--
+    <canvas id="canvas2d" style="z-index:-1;position:fixed; top:0; left:0; width:100%;height:100%;"></canvas>
+    -->
+    <canvas id="canvas2d" style="z-index:-1;position:fixed; top:0; left:0; width:500;height:300;"></canvas>
+</body>
+
+</html>
