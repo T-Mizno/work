@@ -1000,6 +1000,7 @@
             //console.log(boxColors[i]);
             context2D.fillRect(906, ty, 50, h);
             drawText(contentNames[i], 956, ty + 10, "rgba(255,255,255,1.0)");
+            //drawText(contentNames[i], 956, ty + 10, "rgba(0,0,0,1.0)");
             ty += h;
         }
 
@@ -1503,7 +1504,7 @@
 
         if (floor[MOUSE_I][MOUSE_J] != contentNothing() && floor[MOUSE_I][MOUSE_J] != contentCannotMove()) {
             //drawText(contentName(floor[MOUSE_I][MOUSE_J]), MOUSE_X, MOUSE_Y, contentColor(floor[MOUSE_I][MOUSE_J]));
-            drawText(contentName(floor[MOUSE_I][MOUSE_J]), MOUSE_X, MOUSE_Y, "rgba(255,255,255, 0.5)");
+            drawText(contentName(floor[MOUSE_I][MOUSE_J]), MOUSE_X, MOUSE_Y, "rgba(100,100,100, 1.0)");
         }
 
         drawSwipeSelectArea();
@@ -2007,8 +2008,9 @@
 
     <BR>
     <BR>
+    <!--
     <input type="button" value="変更" onclick="changeToAdjustMode(); " /><br />
-
+        -->
 </body>
 
 </html>
