@@ -18,7 +18,7 @@ function newAgent(i) {
         reached: false
     };
 
-    a.path.unshift({ x: a.start.x, y: a.start.y });
+    a.path.unshift({ x: a.start.x, y: a.start.y, froms: [] });
 
 
     a.open = [{ x: a.path[0].x, y: a.path[0].y, dist: 0, froms: [] }];
@@ -69,10 +69,11 @@ function pathCopy(ps) {
 
 function heuristicCost(p) {
     let d = 0;
+    console.log(p);
     for (let i = 0; i < p.froms.length - 1; i++) {
         d = distP(p.froms[i], p.froms[i + 1]);
     }
-    return p;
+    return d;
 }
 
 function searchNearGoalBox(p, content, boxes) {
@@ -84,14 +85,64 @@ function searchNearGoalBox(p, content, boxes) {
         if (b.content == content) {
             let newDist = distXY(p.x, p.y, b.x, b.y);
             if (newDist < minD) {
-                //if (newDist > minD) { // for farest
                 minD = newDist;
                 box = b;
                 flgFound = true;
             }
         }
     });
-    if (!flgFound) console.log("#####################", content);
+    if (!flgFound) {
+        console.log("#####################", content);
+
+    }
+    else {
+    }
+    return box;
+}
+
+function searchFarGoalBox(p, content, boxes) {
+    //let minD = 10000000000;
+    let minD = 0; // for farest
+    let box = boxes[0];
+    let flgFound = false;
+    boxes.forEach(b => {
+        if (b.content == content) {
+            let newDist = distXY(p.x, p.y, b.x, b.y);
+            if (newDist > minD) {
+                minD = newDist;
+                box = b;
+                flgFound = true;
+            }
+        }
+    });
+    if (!flgFound) {
+        console.log("#####################", content);
+    }
+    else {
+    }
+    return box;
+}
+
+function searchNearGoalBox200(p, content, boxes, currentDist) {
+    let minD = 10000000000;
+    //let minD = 0; // for farest
+    let box = boxes[0];
+    let flgFound = false;
+    boxes.forEach(b => {
+        if (b.content == content) {
+            let newDist = Math.abs(300 - currentDist - distXY(p.x, p.y, b.x, b.y));
+            if (newDist < minD) {
+                minD = newDist;
+                box = b;
+                flgFound = true;
+            }
+        }
+    });
+    if (!flgFound) {
+        console.log("#####################", content);
+    }
+    else {
+    }
     return box;
 }
 
@@ -122,8 +173,8 @@ function agentGrowBranch(a, boxes) {
     }
 
     cand.forEach(c => {
-        a.open.unshift(c); // 深さ優先探索
-        //a.open.push(c); // 幅優先探索
+        //a.open.unshift(c); // 深さ優先探索
+        a.open.push(c); // 幅優先探索
     });
 
     // A* search
@@ -132,6 +183,7 @@ function agentGrowBranch(a, boxes) {
         let minDist = 1000000;
         for (let i = 0; i < a.open.length; i++) {
             if (a.open[i].dist < minDist) {
+                //if (a.open[i].length > 200 && a.open[i].length > minDist) {
                 minI = i;
                 minDist = a.open[i].dist;
             }
@@ -141,7 +193,7 @@ function agentGrowBranch(a, boxes) {
     }
 }
 
-function agentNextGo(a, boxes) {
+function agentNextGo(a, boxes, type = 'shortest') {
 
     if (a.reached) return;
 
@@ -152,14 +204,23 @@ function agentNextGo(a, boxes) {
         a.close = [];
         a.open = [];
         a.reached = true;
-        console.log("DONE");
+        console.log("DONE", a.path.length);
         return; // finished
     }
 
     if (a.currentGoalBox === null) {
         //if (true) {
         let g = a.todo[0];
-        a.currentGoalBox = searchNearGoalBox(a.path[0], g, boxes);
+        console.log(a);
+        if (type == 'longest') {
+            a.currentGoalBox = searchFarGoalBox(a.path[0], g, boxes);
+        }
+        else if (type == '200') {
+            a.currentGoalBox = searchNearGoalBox200(a.path[0], g, boxes, a.path.length);
+        }
+        else {
+            a.currentGoalBox = searchNearGoalBox(a.path[0], g, boxes);
+        }
         //a.seekDepth = 100;
     }
 
@@ -183,8 +244,16 @@ function agentNextGo(a, boxes) {
 
     if (areNearBox(a.currentGoalBox, a.path[0]) && a.todo.length > 0) {
         let g = a.todo[0];//.shift();
-        a.currentGoalBox = searchNearGoalBox(a.path[0], g, boxes);
-        console.log(a.currentGoalBox);
+        if (type == 'longest') {
+            a.currentGoalBox = searchFarGoalBox(a.path[0], g, boxes);
+        }
+        else if (type == '200') {
+            a.currentGoalBox = searchNearGoalBox200(a.path[0], g, boxes, a.path.length);
+        }
+        else {
+            a.currentGoalBox = searchNearGoalBox(a.path[0], g, boxes);
+        }
+        //console.log(a.currentGoalBox);
     }
 }
 
