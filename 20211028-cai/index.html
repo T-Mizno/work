@@ -24,12 +24,30 @@
         var UserInput = prompt("パスワードを入力して下さい:", "");
         location.href = "../20211118-trace.html?pw=" + UserInput;
     }
+    function gateARShort() {
+        var UserInput = prompt("パスワードを入力して下さい:", "");
+        location.href = "trace-short.html?pw=" + UserInput;
+    }
+    function gateARLong() {
+        var UserInput = prompt("パスワードを入力して下さい:", "");
+        location.href = "trace-long.html?pw=" + UserInput;
+    }
+    function gateAR200() {
+        var UserInput = prompt("パスワードを入力して下さい:", "");
+        location.href = "trace-200.html?pw=" + UserInput;
+    }
 </script>
 
 <body>
     <input type="button" value="ノーマル" onclick="gateNormal();">
     <input type="button" value="オートアレンジ" onclick="gateAR();">
     <input type="button" value="データ" onclick="gateData();">
+
+    <BR>
+    <BR>
+    <input type="button" value="顧客最短経路" onclick="gateARShort();">
+    <input type="button" value="顧客最長経路" onclick="gateARLong();">
+    <input type="button" value="できるだけ20分間" onclick="gateAR200();">
 </body>
 
 </html>

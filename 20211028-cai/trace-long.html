@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>Sample</title>
+    <style>
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+
+<script src="walkdataset1.js" defer></script>
+<script src="map1.js" defer></script>
+<script src="map1remap.js" defer></script>
+<script src="map2.js" defer></script>
+<script src="dataloader.js" defer></script>
+<script src="agents.js" defer></script>
+<script src="arranger.js" defer></script>
+
+<script>
+
+    function clear(aCanvas) {
+        aCanvas.getContext("2d").clearRect(0, 0, aCanvas.width, aCanvas.height);
+    }
+
+    function drawMapImg(aCanvas) {
+        aCanvas.getContext("2d").drawImage(currentMapImg, 0, 0, currentMapImg.width, currentMapImg.height, currentMapImg.fromX, currentMapImg.fromY, currentMapImg.toX, currentMapImg.toY);
+    }
+
+    function drawText(aCanvas, txt, x, y, color) {
+        let cxt = aCanvas.getContext("2d");
+        cxt.font = "10px 'Times'";
+        cxt.strokeStyle = color;
+        cxt.lineWidth = 1;
+        cxt.strokeText(txt, x, y);
+    }
+
+    function drawLegend(aCanvas) {
+        let cxt = aCanvas.getContext("2d");
+        let ty = 400;
+        let h = 20;
+        for (let i in boxColors) {
+            cxt.fillStyle = boxColors[i];
+            cxt.fillRect(906, ty, 50, h);
+            drawText(aCanvas, contentNames[i], 956, ty + 10, "rgba(255,255,255,1.0)");
+            ty += h;
+        }
+
+    }
+
+    function drawStopMark(aCanvas, stops) {
+        let cxt = aCanvas.getContext("2d");
+        stops.forEach(s => {
+            cxt.beginPath();
+            cxt.fillStyle = "rgba(255,0,0, 0.3) ";
+            cxt.arc(s.x, s.y, 20, 0, 2 * Math.PI, true);
+            cxt.fill();
+        });
+    }
+
+    function drawWalkLine(aCanvas, aWalkData) {
+        let cxt = aCanvas.getContext("2d");
+        for (let i = 0; i < aWalkData.length - 1; i++) {
+            let d = aWalkData[i];
+            let nextD = aWalkData[i + 1];
+
+            cxt.beginPath();
+            cxt.lineWidth = 3;
+            cxt.strokeStyle = "rgba(" + 255 + "," + 50 + "," + 100 + "," + 0.8 + ")";
+
+            cxt.moveTo(d.x, d.y);
+            cxt.lineTo(nextD.x, nextD.y);
+            cxt.stroke();
+        }
+    }
+
+    function drawBoxes(aCanvas, bs) {
+        let context2D = aCanvas.getContext("2d");
+
+        for (let b of bs) {
+            if (typeof (b["content"]) === 'undefined') continue;
+            //if (b["content"] != contentCannotMove()) continue;
+
+            if (typeof (boxColors["" + b["content"]]) === 'undefined') {
+                context2D.fillStyle = "rgb(0, 200, 200)";
+            }
+            else {
+                context2D.fillStyle = boxColors["" + b["content"]];
+            }
+
+            context2D.fillRect(b.x - b.w / 2 + 1, b.y - b.h / 2 + 1, b.w - 1, b.h - 1);
+
+            context2D.beginPath();
+            context2D.lineWidth = "1";
+            context2D.strokeStyle = "black";
+            context2D.rect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
+            context2D.stroke();
+        }
+    }
+
+
+    function drawAgents(aCanvas, aAgents) {
+        aAgents.forEach(a => { renderAgent(aCanvas, a); });
+    }
+
+    function renderAgent(aCanvas, a) {
+        let cxt = aCanvas.getContext("2d");
+
+        // draw start mark
+        cxt.beginPath();
+        cxt.fillStyle = "rgba(255,0,0, 0.3) ";
+        cxt.arc(a.start.x, a.start.y, 20, 0, 2 * Math.PI, true);
+        cxt.fill();
+
+        // draw seek branch
+        a.open.forEach(p => {
+            /*
+            cxt.beginPath();
+            cxt.fillStyle = "rgba(255,0,0, 0.2) ";
+            cxt.arc(p.x, p.y, 3, 0, 2 * Math.PI, true);
+            cxt.fill();
+
+            cxt.beginPath();
+            cxt.lineWidth = 1;
+            cxt.strokeStyle = "rgba(" + 50 + "," + 50 + "," + 50 + "," + 0.2 + ")";
+            cxt.moveTo(a.currentGoalBox.x, a.currentGoalBox.y);
+            cxt.lineTo(p.x, p.y);
+            cxt.stroke();
+
+
+            if (p.froms.length < 1) return;
+
+            cxt.beginPath();
+            cxt.lineWidth = 1;
+            cxt.strokeStyle = "rgba(" + 50 + "," + 50 + "," + 50 + "," + 0.1 + ")";
+
+            cxt.moveTo(p.x, p.y);
+            cxt.lineTo(p.froms[0].x, p.froms[0].y);
+            cxt.stroke();
+
+            for (let i = 0; i < p.froms.length - 1; i++) {
+                cxt.moveTo(p.froms[i].x, p.froms[i].y);
+                cxt.lineTo(p.froms[i + 1].x, p.froms[i + 1].y);
+                cxt.stroke();
+
+            }
+            */
+
+        });
+
+        /*
+        a.close.forEach(p => {
+            if (p.froms.length < 1) return;
+            cxt.beginPath();
+            cxt.fillStyle = "rgba(0,0,255, 0.1) ";
+            cxt.arc(p.x, p.y, 3, 0, 2 * Math.PI, true);
+            cxt.fill();
+        });
+        */
+
+        // draw best branch
+        if (a.open.length > 1) {
+            cxt.beginPath();
+            cxt.lineWidth = 1;
+            cxt.strokeStyle = "rgba(" + 255 + "," + 0 + "," + 0 + "," + 1 + ")";
+            for (let i = 0; i < a.open[0].froms.length - 1; i++) {
+                cxt.moveTo(a.open[0].froms[i].x, a.open[0].froms[i].y);
+                cxt.lineTo(a.open[0].froms[i + 1].x, a.open[0].froms[i + 1].y);
+                cxt.stroke();
+            }
+        }
+
+        // draw path
+        cxt.beginPath();
+        cxt.lineWidth = 0.5;
+        cxt.strokeStyle = "rgba(" + 255 + "," + 0 + "," + 0 + "," + 0.1 + ")";
+        for (let i = 0; i < a.path.length - 1; i++) {
+            cxt.moveTo(a.path[i].x, a.path[i].y);
+            cxt.lineTo(a.path[i + 1].x, a.path[i + 1].y);
+            cxt.stroke();
+        }
+
+        if (a.path.length > 1) {
+            cxt.fillStyle = "rgba(255,0,0, 0.8) ";
+            cxt.arc(a.path[a.path.length - 1 - a.pathCount].x, a.path[a.path.length - 1 - a.pathCount].y, 6, 0, 2 * Math.PI, true);
+            cxt.fill();
+
+            cxt.beginPath();
+            cxt.lineWidth = 4;
+            cxt.strokeStyle = "rgba(" + 255 + "," + 0 + "," + 0 + "," + 0.8 + ")";
+            for (let c = 0; c < a.pathCount; c++) {
+                let i = a.path.length - 1 - c;
+                cxt.beginPath();
+
+                cxt.moveTo(a.path[i].x, a.path[i].y);
+                cxt.lineTo(a.path[i - 1].x, a.path[i - 1].y);
+                cxt.stroke();
+            }
+        }
+        a.pathCount = Math.min(a.pathCount + 1, a.path.length - 1);
+    }
+
+    function keydown(e) {
+        if (e.keyCode == 39) { // right arrow
+            currentWalkData = loadWalkData1((currentWalkData.no + 1) % WALK_DATA.length, GlobalWidth(), GlobalHeight());
+            return;
+        }
+        if (e.keyCode == 37) { // left arrow
+            currentWalkData = loadWalkData1((currentWalkData.no + WALK_DATA.length - 1) % WALK_DATA.length, GlobalWidth(), GlobalHeight());
+            return;
+        }
+        if (e.key == 'm') {
+            state.viewBoxes = !state.viewBoxes;
+            return;
+        }
+    }
+
+    function onMouseDown(e) {
+        console.log("x:", e.clientX, " y:", e.clientY);
+        let fb = onBoxesWithBox({ x: e.clientX, y: e.clientY }, currentBoxes);
+        if (fb.on) {
+            console.log("content", fb.box.content);
+        }
+        //console.log(onBoxXY(e.clientX, e.clientY, currentBoxes[0]));
+    }
+
+
+    let canvas2D;
+
+    let currentWalkData;
+    let currentFloorMatrix;
+    let currentBoxes;
+    let currentMapImg;
+
+    let state = { viewBoxes: true };
+
+    let agents;
+    let arrangers;
+
+    function update() {
+
+        clear(canvas2D);
+
+        //        drawMapImg(canvas2D);
+        if (state.viewBoxes) drawBoxes(canvas2D, currentBoxes);
+        //        drawStopMark(canvas2D, getStopPoints(currentWalkData));
+        //        drawWalkLine(canvas2D, currentWalkData);
+
+        //agents.forEach(a => { agentNextGo(a, currentBoxes); });
+        agents.forEach(a => { agentNextGo(a, currentBoxes, 'longest'); });
+        //agents.forEach(a => { agentNextGo(a, currentBoxes, '200'); });
+        drawAgents(canvas2D, agents);
+
+        if (agents.every(a => a.pathCount >= a.path.length - 1)) {
+            updateArrangers(arrangers, agents, currentBoxes);
+            rearrangeBoxes(arrangers, currentBoxes);
+            agents = newAgents(agents.length);
+        }
+
+        drawLegend(canvas2D);
+
+        window.requestAnimationFrame(update);
+    }
+
+
+    function init() {
+        //cert(70);
+
+        canvas2D = document.getElementById("canvas2d");
+        canvas2D.width = GlobalWidth();
+        canvas2D.height = GlobalHeight();
+
+        currentWalkData = loadWalkData1(0, GlobalWidth(), GlobalHeight());
+        currentFloorMatrix = loadFloorMatrix(1);
+        currentBoxes = loadBoxes(currentFloorMatrix, GlobalWidth(), GlobalHeight());
+        enhanceMap1(currentBoxes);
+        currentMapImg = loadMapImg1();
+
+        //agents = newAgents(5);
+        agents = newAgents(1);
+
+        arrangers = defaultArrangers();
+        rearrangeBoxes(arrangers, currentBoxes);
+
+        window.requestAnimationFrame(update);
+    }
+
+    window.onload = init;
+    document.onkeydown = keydown;
+    window.onmousedown = onMouseDown;
+
+</script>
+
+<body>
+    <canvas id="canvas2d" style="z-index:-1;position:fixed; top:0; left:0; width:500;height:300;"></canvas>
+</body>
+
+</html>
