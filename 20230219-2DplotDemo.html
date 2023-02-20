@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>Sample</title>
+</head>
+
+<script src="20230219-2Dplot.js" defer></script>
+
+<script>
+
+    let xys = [];
+    let dxys = [];
+    let ddxys = [];
+    let cxys = [];
+
+    function update() {
+
+        if (xys.length < 1) xys.unshift([0, 100]);
+        else {
+            let prex = xys[xys.length - 1][0];
+            let prey = xys[xys.length - 1][1];
+            xys.push([prex + 1, prey - (200 / (1 + prex)) * (Math.random())]);
+        }
+
+        if (xys.length > 1) {
+            dxys = [];
+            for (let i = 0; i < xys.length - 1; i++) {
+                dxys.push([xys[i][0], 5 * (xys[i + 1][1] - xys[i][1])]);
+            }
+        }
+
+        if (dxys.length > 1) {
+            ddxys = [];
+            for (let i = 0; i < dxys.length - 1; i++) {
+                ddxys.push([dxys[i][0], 0.5 * (dxys[i + 1][1] - dxys[i][1])]);
+            }
+        }
+
+        if (xys.length >= 1) {
+            cxys = [];
+            let sum = 0;
+            for (let xy of xys) {
+                sum += xy[1];
+                cxys.push([xy[0], 0.01 * sum]);
+            }
+        }
+
+
+        let str = svgLineGraph(800, 300, [xys, dxys, ddxys, cxys]);
+
+        let linegraph = document.getElementById('linegraph');
+        linegraph.innerHTML = str;
+
+        let svgout = document.getElementById('svgout');
+        svgout.innerHTML = str;
+
+        if (xys.length <= 100) {
+            window.requestAnimationFrame(update);
+        }
+    }
+
+
+    function init() {
+        window.requestAnimationFrame(update);
+    }
+
+    window.onload = init;
+</script>
+
+<body>
+    <H1>Sample 2D plot</H1>
+    <article id="linegraph"></article>
+    <TEXTAREA rows="30" cols="50" id="svgout"></TEXTAREA>
+</body>
+
+</html>
